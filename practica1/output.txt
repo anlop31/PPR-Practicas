@@ -1,0 +1,45 @@
+
+1 CUDA-enabled  GPUs detected in this computer system
+
+.....................................................
+
+Device 0: NVIDIA GeForce RTX 4060 with Compute Capability: 8.9
+
+Using Device 0
+.....................................................
+
+antes reduce
+despues reduce
+C[i]=0
+C[i]=5
+C[i]=3
+C[i]=4
+C[i]=1
+C[i]=0
+C[i]=4
+C[i]=5
+C[i]=3
+C[i]=2
+C[i]=0
+C[i]=1
+C[i]=2
+C[i]=1
+C[i]=5
+C[i]=0
+c_out_media[0]: 12
+nverts:4
+n*n-n=12
+La media aritmetica es: 1
+Time spent on GPU= 0.06192
+
+Time spent on CPU= 4e-06
+
+.....................................................
+
+Speedup TCPU/TGPU= 6.45995e-05
+.....................................................
+
+.....................................................
+WELL DONE!!! No errors found ............................
+.....................................................
+
