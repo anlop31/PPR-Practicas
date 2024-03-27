@@ -10,21 +10,24 @@ using namespace std;
 
 //**************************************************************************
 // FLOYD 1D
-// __global__ void floyd_kernel(int * M, const int nverts, const int k) {
-//     int ij = threadIdx.x + blockDim.x * blockIdx.x;
-//     int i= ij / nverts;
-//     int j= ij - i * nverts;
-//     if (i<nverts && j< nverts) {
-//     int Mij = M[ij];
-//     if (i != j && i != k && j != k) {
-// 	int Mikj = M[i * nverts + k] + M[k * nverts + j];
-//     Mij = (Mij > Mikj) ? Mikj : Mij;
-//     M[ij] = Mij;}
-//   }
-// }
+__global__ void floyd_kernel(int * M, const int nverts, const int k) {
+    int ij = threadIdx.x + blockDim.x * blockIdx.x;
+    int i = ij / nverts;
+    int j = ij - i * nverts;
+
+    if (i < nverts && j < nverts) {
+		int Mij = M[ij];
+
+		if (i != j && i != k && j != k) {
+			int Mikj = M[i * nverts + k] + M[k * nverts + j];
+			Mij = (Mij > Mikj) ? Mikj : Mij;
+			M[ij] = Mij;
+		}
+  }
+}
 
 // FLOYD 2D
-__global__ void floyd_kernel(int * M, const int nverts, const int k) {
+__global__ void floyd_kernel_2D(int * M, const int nverts, const int k) {
 	int j = blockIdx.x * blockDim.x + threadIdx.x;
     int i = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -40,7 +43,7 @@ __global__ void floyd_kernel(int * M, const int nverts, const int k) {
   	}
 }
 
-__global__ void reduceMediaAritmetica(int * M, long int * M_out, const int nverts) {
+__global__ void reduceMediaAritmetica(int * M, long int * M_out, const int nverts, const int k) {
 	// Shared memory vector to store the data
 	extern __shared__ float sdata[];
 
@@ -51,10 +54,15 @@ __global__ void reduceMediaAritmetica(int * M, long int * M_out, const int nvert
 
     int ij = i * nverts + j;
     float Mij = 0.0f; // Initialize Mij with a float value
+	
+	// float Mikj = 0.0f;
+	// float Mikj = M[i * nverts + k] + M[k * nverts + j];
+
 
     // Check bounds before accessing M
     if (i < nverts && j < nverts) {
-        Mij = static_cast<float>(M[ij]); // Convert Mij to float
+        // Mikj = static_cast<float>(M[ij]); // Convert Mij to float
+        Mij = static_cast<float>(M[ij]); // Convert Mikj to float
     }
 
     // Load data into shared memory
@@ -71,10 +79,30 @@ __global__ void reduceMediaAritmetica(int * M, long int * M_out, const int nvert
 	// Write result for this block to global memory
 	if (tid == 0) 
 		// M_out[blockIdx.x] = sdata[0];
-		M_out[j * gridDim.x + blockIdx.x] = sdata[0];
+		// M_out[j * gridDim.x + blockIdx.x] = sdata[0];
+		M_out[blockIdx.y * gridDim.x + blockIdx.x] = sdata[0];
+}
 
-	// M_out[0] = sdata[0];
 
+__global__ void reduceMediaAritmetica_1D(int * M, long int * M_out, const int nverts) {
+	extern __shared__ float sdata[];
+
+	int tid = threadIdx.x;
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    sdata[tid] = ((i < (nverts*nverts)) ? static_cast<float>(M[i]) : 0.0f);
+    __syncthreads();
+
+
+	// Do reduction in shared memory
+    for (int s=blockDim.x/2; s>0; s>>=1) {
+		if (tid < s) {
+			sdata[tid] += sdata[tid + s];
+		}
+		__syncthreads();
+	}
+
+    if (tid == 0) 
+           M_out[blockIdx.x] = sdata[0];
 }
 
 
@@ -173,7 +201,6 @@ int main (int argc, char *argv[]) {
 	////
 	long int * d_Out_M = NULL;
 	long int *c_Out_M_media = new long int[nverts2];
-
 	////
 
 	err = cudaMalloc((void **) &d_In_M, size);
@@ -209,15 +236,14 @@ int main (int argc, char *argv[]) {
 		// Unidimensional
 	 	// int threadsPerBlock = blocksize;
 	 	// int blocksPerGrid = (nverts2 + threadsPerBlock - 1) / threadsPerBlock;
-
+	    // floyd_kernel<<<blocksPerGrid,threadsPerBlock >>>(d_In_M, nverts, k);
 
 		// Bidimensional
 		int a = sqrt(blocksize);
 		dim3 threadsPerBlock (a, a);
 		dim3 blocksPerGrid( ceil ((float)(nverts)/threadsPerBlock.x), ceil ((float)(nverts)/threadsPerBlock.y) );
-        
-		// Kernel Launch
-	    floyd_kernel<<<blocksPerGrid,threadsPerBlock >>>(d_In_M, nverts, k);
+		floyd_kernel_2D<<<blocksPerGrid,threadsPerBlock >>>(d_In_M, nverts, k);
+
 	    err = cudaGetLastError();
 
 	    if (err != cudaSuccess) {
@@ -226,19 +252,12 @@ int main (int argc, char *argv[]) {
 		}
 	}
 
-
 	// Reduction
-	int a = sqrt(blocksize);
-	dim3 threadsPerBlock (a, a);
-	// dim3 numBlocks( ceil((float)(nverts)/threadsPerBlock.x), 1 );
-	dim3 numBlocks(ceil((float)(nverts) / threadsPerBlock.x), ceil((float)(nverts) / threadsPerBlock.y));
-	int smemSize = threadsPerBlock.x*threadsPerBlock.y*sizeof(float);
-	cout << "antes reduce" << endl;
-	reduceMediaAritmetica<<<numBlocks, threadsPerBlock, smemSize>>>(d_In_M, d_Out_M, nverts);
-	cout << "despues reduce" << endl;
+	int threadsPerBlock = blocksize;
+	int blocksPerGrid = (nverts2 + threadsPerBlock - 1) / threadsPerBlock;
+	int smemSize = threadsPerBlock*sizeof(float);
 
-
-
+	reduceMediaAritmetica_1D<<<blocksPerGrid,threadsPerBlock, smemSize>>>(d_In_M, d_Out_M, nverts);
 
 	err =cudaMemcpy(c_Out_M, d_In_M, size, cudaMemcpyDeviceToHost); // ejercicio 1-1
 	err =cudaMemcpy(c_Out_M_media, d_Out_M, size, cudaMemcpyDeviceToHost); // ejercicio 1-2
@@ -246,20 +265,22 @@ int main (int argc, char *argv[]) {
 		cout << "ERROR CUDA MEM. COPY" << endl;
 	} 
 
-	// Imprimir floyd 
+	// DEBUG: Imprimir floyd 
 	// for(int i=0; i<nverts2; i++){
-	// 		cout << "C[i]=" << c_Out_M[i] << endl;
+	// 		cout << "C[" << i << "]=" << c_Out_M[i] << endl;
 	// }
 
+	// DEBUG: Imprimir matriz de adyacencia
+	// for(int i=0; i<nverts2; i++){
+	// 		cout << "C_out_media[" << i << "]=" << c_Out_M_media[i] << endl;
+	// }
+	
+	cout << endl << "c_out_media[0]: " << c_Out_M_media[0] << endl;
 
-	cout << "c_out_media[0]: " << c_Out_M_media[0] << endl;
-	cout << "nverts:" << nverts << endl;
-	cout << "n*n-n=" << (nverts*nverts-nverts) << endl;
 	float media = 0;
 	media = (float)( (c_Out_M_media[0] * 1.0) / ((nverts*nverts-nverts) * 1.0) ); // suma final
-	// cout << "revivo" << endl;
 
-	cout << "La media aritmetica es: " << media << endl;
+	cout << "La media aritmetica es: " << media << endl << endl;
 
 
 	Tgpu=(clock()-time)/CLOCKS_PER_SEC;
@@ -275,15 +296,15 @@ int main (int argc, char *argv[]) {
 	// BUCLE PPAL DEL ALGORITMO
 	int inj, in, kn;
 	for(int k = 0; k < niters; k++) {
-          kn = k * nverts;
-	  for(int i=0;i<nverts;i++) {
+		kn = k * nverts;
+		for(int i=0;i<nverts;i++) {
 			in = i * nverts;
 			for(int j = 0; j < nverts; j++)
-	       			if (i!=j && i!=k && j!=k){
-			 	    inj = in + j;
-			 	    A[inj] = min(A[in+k] + A[kn+j], A[inj]);
-	       }
-	   }
+				if (i!=j && i!=k && j!=k){
+					inj = in + j;
+					A[inj] = min(A[in+k] + A[kn+j], A[inj]);
+				}
+		}
 	}
   
   Tcpu=(clock()-time)/CLOCKS_PER_SEC;
@@ -297,20 +318,20 @@ int main (int argc, char *argv[]) {
   bool errors=false;
   // Error Checking (CPU vs. GPU)
   for(int i = 0; i < nverts; i++)
-    for(int j = 0; j < nverts; j++)
-       if (abs(c_Out_M[i*nverts+j] - G.arista(i,j)) > 0)
-         {cout << "Error (" << i << "," << j << ")   " << c_Out_M[i*nverts+j] << "..." << G.arista(i,j) << endl;
-		  errors=true;
-		 }
+	for(int j = 0; j < nverts; j++)
+		if (abs(c_Out_M[i*nverts+j] - G.arista(i,j)) > 0) {
+			cout << "Error (" << i << "," << j << ")   " << c_Out_M[i*nverts+j] << "..." << G.arista(i,j) << endl;
+			errors=true;
+		}
 
 
   if (!errors){ 
     cout<<"....................................................."<<endl;
 	cout<< "WELL DONE!!! No errors found ............................"<<endl;
 	cout<<"....................................................."<<endl<<endl;
-
   }
-  cudaFree(d_In_M);
+
+  	cudaFree(d_In_M);
 	cudaFree(d_Out_M);
 }
 
