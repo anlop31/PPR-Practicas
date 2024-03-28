@@ -5,50 +5,7 @@
 
 using namespace std;
 
-#define blocksize 64
-
 //**************************************************************************
-
-// FLOYD 2D
-__global__ void floyd_kernel_2D(int * M, const int nverts, const int k) {
-	int j = blockIdx.x * blockDim.x + threadIdx.x;
-    int i = blockIdx.y * blockDim.y + threadIdx.y;
-
-    if (i < nverts && j < nverts) {
-		int ij = i * nverts + j;
-		int Mij = M[ij];
-
-		if (i != j && i != k && j != k) {
-			int Mikj = M[i * nverts + k] + M[k * nverts + j];
-			Mij = (Mij > Mikj) ? Mikj : Mij;
-			M[ij] = Mij;
-		}
-  	}
-}
-
-
-__global__ void reduceMediaAritmetica_1D(int * M, long int * M_out, const int nverts) {
-	extern __shared__ float sdata[];
-
-	int tid = threadIdx.x;
-    int i = blockIdx.x * blockDim.x + threadIdx.x;
-    sdata[tid] = ((i < (nverts*nverts)) ? static_cast<float>(M[i]) : 0.0f);
-    __syncthreads();
-
-
-	// Do reduction in shared memory
-    for (int s=blockDim.x/2; s>0; s>>=1) {
-		if (tid < s) {
-			sdata[tid] += sdata[tid + s];
-		}
-		__syncthreads();
-	}
-
-    if (tid == 0) 
-           M_out[blockIdx.x] = sdata[0];
-}
-
-
   // Initialize arrays A and B
 //   for (int i = 0; i < N; i++)
 //   {
@@ -115,11 +72,11 @@ __global__ void computaC_v2(float * A, float * B, float * C, const int i, const 
 
 
 __global__ void calculaMaximoC(float * C, float * C_mx, float size) {
-	extern __shared__ float sdata[];
+        extern __shared__ float sdata[];
     extern __shared__ float mx;
 
 
-	int tid = threadIdx.x;
+        int tid = threadIdx.x;
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     sdata[tid] = ((i < (size)) ? static_cast<float>(C[i]) : 0.0f);
     __syncthreads();
@@ -130,16 +87,16 @@ __global__ void calculaMaximoC(float * C, float * C_mx, float size) {
     __syncthreads();
 
 
-	// Do reduction in shared memory
+        // Do reduction in shared memory
     for (int s=blockDim.x/2; s>0; s>>=1) {
-		if (tid < s) {
+                if (tid < s) {
             if(sdata[tid+s] >= mx){
-			    sdata[tid] = sdata[tid + s];
+                            sdata[tid] = sdata[tid + s];
                 mx = sdata[tid + s];
             }
-		}
-		__syncthreads();
-	}
+                }
+                __syncthreads();
+        }
 
     if (tid == 0) 
         C_mx[blockIdx.x] = sdata[0];
@@ -151,49 +108,49 @@ __global__ void calculaMaximoTotal(float * C, float * C_out, float size){
     extern __shared__ float mx;
 
 
-	int tid = threadIdx.x;
+        int tid = threadIdx.x;
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     sdata[tid] = ((i < (size)) ? static_cast<float>(C[i]) : 0.0f);
     __syncthreads();
-    
+  
     if(tid == 0)
         mx = C[0];
 
     __syncthreads();
 
 
-	// Do reduction in shared memory
+        // Do reduction in shared memory
     for (int s=blockDim.x/2; s>0; s>>=1) {
-		if (tid < s) {
+                if (tid < s) {
             if(sdata[tid+s] >= mx){
-			    sdata[tid] = sdata[tid + s];
+                            sdata[tid] = sdata[tid + s];
                 mx = sdata[tid + s];
             }
-		}
-		__syncthreads();
-	}
-
+                }
+                __syncthreads();
+        }
+        __syncthreads();
     if (tid == 0) 
-        C_out[blockIdx.x] = sdata[0];
-        // C_out[blockIdx.x] = mx;
+        //C_out[blockIdx.x] = sdata[0];
+        C_out[0] = mx;
 }
 
 __global__ void computaD(float * C, float * D, float size) {
     extern __shared__ float sdataD[];
 
-	int tid = threadIdx.x;
+        int tid = threadIdx.x;
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     sdataD[tid] = ((i < (size)) ? static_cast<float>(C[i]) : 0.0f);
     __syncthreads();
 
 
-	// Do reduction in shared memory
+        // Do reduction in shared memory
     for (int s=blockDim.x/2; s>0; s>>=1) {
-		if (tid < s) {
+                if (tid < s) {
             sdataD[tid] += sdataD[tid + s];
-		}
-		__syncthreads();
-	}
+                }
+                __syncthreads();
+        }
 
     if (tid == 0) 
         D[blockIdx.x] = sdataD[0];
@@ -211,9 +168,9 @@ int main (int argc, char *argv[]) {
     double time, Tcpu, Tgpu;
 
     if (argc != 3) {
-	    cerr << "Sintaxis: " << argv[0] << " <./transformacion numbloques tambloque>" << endl;
-		return(-1);
-	}	
+            cerr << "Sintaxis: " << argv[0] << " <./transformacion numbloques tambloque>" << endl;
+                return(-1);
+        }
 
     int nBlocks = atoi(argv[1]);
     int bSize = atoi(argv[2]);
@@ -223,31 +180,31 @@ int main (int argc, char *argv[]) {
     cudaDeviceProp props;
     cudaError_t err;
 
-	err=cudaGetDeviceCount(&num_devices);
-	if (err == cudaSuccess) { 
-	    cout <<endl<< num_devices <<" CUDA-enabled  GPUs detected in this computer system"<<endl<<endl;
-		cout<<"....................................................."<<endl<<endl;}	
-	else 
-	    { cerr << "ERROR detecting CUDA devices......" << endl; exit(-1);}
-	    
-	for (int i = 0; i < num_devices; i++) {
-	    devID=i;
-	    err = cudaGetDeviceProperties(&props, devID);
+        err=cudaGetDeviceCount(&num_devices);
+        if (err == cudaSuccess) { 
+            cout <<endl<< num_devices <<" CUDA-enabled  GPUs detected in this computer system"<<endl<<endl;
+                cout<<"....................................................."<<endl<<endl;}
+        else 
+            { cerr << "ERROR detecting CUDA devices......" << endl; exit(-1);}
+            
+        for (int i = 0; i < num_devices; i++) {
+            devID=i;
+            err = cudaGetDeviceProperties(&props, devID);
         cout<<"Device "<<devID<<": "<< props.name <<" with Compute Capability: "<<props.major<<"."<<props.minor<<endl<<endl;
         if (err != cudaSuccess) {
-		  cerr << "ERROR getting CUDA devices" << endl;
-	    }
+                  cerr << "ERROR getting CUDA devices" << endl;
+            }
 
 
-	}
-	devID = 0;    
+        }
+        devID = 0;    
         cout<<"Using Device "<<devID<<endl;
         cout<<"....................................................."<<endl<<endl;
 
-	err = cudaSetDevice(devID); 
+        err = cudaSetDevice(devID); 
     if(err != cudaSuccess) {
-		cerr << "ERROR setting CUDA device" <<devID<< endl;
-	}
+                cerr << "ERROR setting CUDA device" <<devID<< endl;
+        }
 
     // Vectores
     float * d_A = NULL;
@@ -258,7 +215,7 @@ int main (int argc, char *argv[]) {
     float * d_C_out = NULL;
 
     int N = nBlocks * bSize;
-	int size = (nBlocks*bSize)*sizeof(float);
+        int size = (nBlocks*bSize)*sizeof(float);
     int sizeD = nBlocks*sizeof(float);
     cout << "size: " << size << endl;
     cout << "sizeD: " << sizeD << endl;
@@ -274,56 +231,56 @@ int main (int argc, char *argv[]) {
 
 
     // Reserva de espacio
-	err = cudaMalloc((void **) &d_A, size);
-	if (err != cudaSuccess) {
-		cerr << "ERROR MALLOC D_A" << endl;
-	}
+        err = cudaMalloc((void **) &d_A, size);
+        if (err != cudaSuccess) {
+                cerr << "ERROR MALLOC D_A" << endl;
+        }
 
-	err = cudaMalloc((void **) &d_B, size);
-	if (err != cudaSuccess) {
-		cerr << "ERROR MALLOC D_B" << endl;
-	}
+        err = cudaMalloc((void **) &d_B, size);
+        if (err != cudaSuccess) {
+                cerr << "ERROR MALLOC D_B" << endl;
+        }
 
-	err = cudaMalloc((void **) &d_C, size);
-	if (err != cudaSuccess) {
-		cerr << "ERROR MALLOC D_C" << endl;
-	}
+        err = cudaMalloc((void **) &d_C, size);
+        if (err != cudaSuccess) {
+                cerr << "ERROR MALLOC D_C" << endl;
+        }
 
-	err = cudaMalloc((void **) &d_D, sizeD);
-	if (err != cudaSuccess) {
-		cerr << "ERROR MALLOC D_D" << endl;
-	}
+        err = cudaMalloc((void **) &d_D, sizeD);
+        if (err != cudaSuccess) {
+                cerr << "ERROR MALLOC D_D" << endl;
+        }
 
     err = cudaMalloc((void **) &d_C_mx, size);
-	if (err != cudaSuccess) {
-		cerr << "ERROR MALLOC C_MX" << endl;
-	}
+        if (err != cudaSuccess) {
+                cerr << "ERROR MALLOC C_MX" << endl;
+        }
 
     err = cudaMalloc((void **) &d_C_out, size);
-	if (err != cudaSuccess) {
-		cerr << "ERROR MALLOC C_OUT" << endl;
-	}
+        if (err != cudaSuccess) {
+                cerr << "ERROR MALLOC C_OUT" << endl;
+        }
 
 
 
     //**************************************************************************
-	// GPU phase
-	//**************************************************************************
-	
+        // GPU phase
+        //**************************************************************************
+
     time=clock();
 
 
     inicializarVectores<<<nBlocks,bSize>>>(d_A, d_B, size);
 
     err =cudaMemcpy(A, d_A, size, cudaMemcpyDeviceToHost);
-	if (err != cudaSuccess) {
-		cout << "ERROR CUDA MEM. COPY A" << endl;
-	} 
+        if (err != cudaSuccess) {
+                cout << "ERROR CUDA MEM. COPY A" << endl;
+        } 
 
     err =cudaMemcpy(B, d_B, size, cudaMemcpyDeviceToHost);
-	if (err != cudaSuccess) {
-		cout << "ERROR CUDA MEM. COPY B" << endl;
-	} 
+        if (err != cudaSuccess) {
+                cout << "ERROR CUDA MEM. COPY B" << endl;
+        } 
 
 
     for (int k = 0; k < nBlocks; k++){
@@ -351,24 +308,24 @@ int main (int argc, char *argv[]) {
 
     // Copia a host
     err =cudaMemcpy(C, d_C, size, cudaMemcpyDeviceToHost); 
-	if (err != cudaSuccess) {
-		cout << "ERROR CUDA MEM. COPY C" << endl;
-	}
+        if (err != cudaSuccess) {
+                cout << "ERROR CUDA MEM. COPY C" << endl;
+        }
 
     err =cudaMemcpy(D, d_D, sizeD, cudaMemcpyDeviceToHost); 
-	if (err != cudaSuccess) {
-		cout << "ERROR CUDA MEM. COPY D" << endl;
-	}
+        if (err != cudaSuccess) {
+                cout << "ERROR CUDA MEM. COPY D" << endl;
+        }
 
     err =cudaMemcpy(C_mx, d_C_mx, size, cudaMemcpyDeviceToHost); 
-	if (err != cudaSuccess) {
-		cout << "ERROR CUDA MEM. COPY C_MX" << endl;
-	}
+        if (err != cudaSuccess) {
+                cout << "ERROR CUDA MEM. COPY C_MX" << endl;
+        }
 
     err =cudaMemcpy(C_out, d_C_out, size, cudaMemcpyDeviceToHost); 
-	if (err != cudaSuccess) {
-		cout << "ERROR CUDA MEM. COPY C_MX" << endl;
-	}
+        if (err != cudaSuccess) {
+                cout << "ERROR CUDA MEM. COPY C_MX" << endl;
+        }
 
     // Imprimir matriz A
     // for (int i=0; i<4; i++){
@@ -400,22 +357,26 @@ int main (int argc, char *argv[]) {
         cout << "D["<<i<<"]: " << D[i] << endl;
     }
 
+    float d_max = C_out[0];
+
     // Imprimir maximo total
-    cout << "Máximo --> C_out[0]: " << C_out[0] << endl;
-    // for (int i=0; i<size; i++){
-    //     cout << "C_out["<<i<<"]: " << C_out[i] << endl;
-    // }
+    cout << "Máximo --> C_out[0]: " << d_max << endl;
+     for (int i=0; i<size; i++){
+         if (C_out[i] != 0) {
+                cout << "C_out["<<i<<"]: " << C_out[i] << endl;
+         }
+     }
 
 
-	Tgpu=(clock()-time)/CLOCKS_PER_SEC;
-	
-	cout << "Time spent on GPU= " << Tgpu << endl << endl;
+        Tgpu=(clock()-time)/CLOCKS_PER_SEC;
+
+        cout << "Time spent on GPU= " << Tgpu << endl << endl;
 
     //**************************************************************************
-	// CPU phase
-	//**************************************************************************
+        // CPU phase
+        //**************************************************************************
 
-	time=clock();
+        time=clock();
 
     // ALGORITMO SECUENCIAL
 
@@ -483,70 +444,79 @@ int main (int argc, char *argv[]) {
 
   
   bool errors=false;
+  float epsilon = 0.0000000000000001f; //Umbral para comprobar fallo de coma flotante
 
   // Error Checking (CPU vs. GPU)
 
     // for (int i=0; i<N; i++){
     //     cout << "h_C["<<i<<"]: " << h_C[i] << endl;
     // }
+    for (int i=0; i<N; i++){
+        if (abs(h_A[i] - A[i]) >= epsilon){
+                cout << "ERROR A (i: " << i << ") " << h_A[i] << "!=" << A[i] << endl;
+            //cout << "Error: A no coincide" << endl;
+            //cout << "fallo en i: " << i << " con valor A["<<i<<"]: " << A[i];
+            //cout << " y h_A["<<i<<"]" << h_A[i] << endl;
+            errors = true;
+        }
+    }
+    cout << endl;
+    for (int i=0; i<N; i++){
+        if (abs(h_B[i] - B[i]) >= epsilon){
+                cout << "ERROR B (i: " << i << ") " << h_B[i] << "!=" << B[i] << endl;
+            //cout << "Error: B no coinciden" << endl;
+            //cout << "fallo en i: " << i << " con valor B["<<i<<"]: " << B[i];
+            //cout << " y h_B["<<i<<"]" << h_B[i] << endl;
+            errors = true;
+        }
+    }
+    cout << endl;
+    for (int i=0; i<N; i++){
+        if (abs(h_C[i] - C[i]) >= epsilon){
+            cout << "ERROR C(i: " << i << ") " << h_C[i] << "!=" << C[i] << endl;
 
-    for (int i=0; i<N; i++){
-        if (h_A[i] != A[i]){
-            cout << "Error: A no coincide" << endl;
-            cout << "fallo en i: " << i << " con valor A["<<i<<"]: " << A[i];
-            cout << " y h_A["<<i<<"]" << h_A[i] << endl;
-            errors = true;
-        }
-    }
-    for (int i=0; i<N; i++){
-        if (h_B[i] != B[i]){
-            cout << "Error: B no coinciden" << endl;
-            cout << "fallo en i: " << i << " con valor B["<<i<<"]: " << B[i] << endl;
-            cout << " y h_B["<<i<<"]" << h_B[i] << endl;
-            errors = true;
-        }
-    }
-    for (int i=0; i<N; i++){
-        if (h_C[i] != C[i]){
-            cout << "C no coincide" << endl;
-            cout << "fallo en i: " << i << " con valor C["<<i<<"]: " << C[i] << endl;
-            cout << " y h_C["<<i<<"]" << h_C[i] << endl;
+            //cout << "C no coincide" << endl;
+            //cout << "fallo en i: " << i << " con valor C["<<i<<"]: " << C[i];
+            //cout << " y h_C["<<i<<"]" << h_C[i] << endl;
             errors = true;
         }
     }
 
+    cout << endl;
+    
     for (int i=0; i < nBlocks; i++){
-        if(h_D[i] != D[i]){
-            cout << "Error: D no coincide con valor D["<<i<<"]: " << D[i];
-            cout << " y h_D["<<i<<"]: " << h_D[i] << endl; 
+        if(abs(h_D[i] - D[i]) >= epsilon){
+            cout << "ERROR D(i: " << i << ") " << h_D[i] << "!=" << D[i] << endl;
+            //cout << "Error: D no coincide con valor D["<<i<<"]: " << D[i];
+            //cout << " y h_D["<<i<<"]: " << h_D[i] << endl; 
             errors = true;
             // break;
         }
     }
-
-    if(C_out[0] != h_mx){
-        cout << "Error: maximo no coincide" << endl;
+    cout << endl;
+    if(d_max != h_mx){
+        cout << "ERROR MAXIMO(" << d_max << "!=" << h_mx << ")"  << endl;
         errors = true;
     }
 
 
   if (!errors){ 
     cout<<"....................................................."<<endl;
-	cout<< "WELL DONE!!! No errors found ............................"<<endl;
-	cout<<"....................................................."<<endl<<endl;
+        cout<< "WELL DONE!!! No errors found ............................"<<endl;
+        cout<<"....................................................."<<endl<<endl;
   }
 
-  	cudaFree(d_A);
-	cudaFree(d_B);
-	cudaFree(d_C);    
-	cudaFree(d_D);   
+    cudaFree(d_A);
+    cudaFree(d_B);
+    cudaFree(d_C);    
+    cudaFree(d_D);   
     cudaFree(d_C_mx);
     cudaFree(d_C_out);
 
     cudaFree(A);
-	cudaFree(B);
-	cudaFree(C);    
-	cudaFree(D);    
+    cudaFree(B);
+    cudaFree(C);    
+    cudaFree(D);    
     cudaFree(C_mx);
     cudaFree(C_out);
 
@@ -555,5 +525,4 @@ int main (int argc, char *argv[]) {
     delete[] h_C;
     delete[] h_D;
 }
-
 
