@@ -23,8 +23,7 @@ __global__ void inicializarVectores(float * A, float * B, const int size) {
     }
 }
 
-__global__ void computaC(float * A, float * B, float * C, const int k, const int bSize) {
-
+__global__ void computaC_v1(float * A, float * B, float * C, const int k, const int bSize) {
     int istart = k * bSize, iend = istart + bSize; // k es el numero de bloque
 
     int i = (blockIdx.y * blockDim.y + threadIdx.y) + istart;
@@ -45,25 +44,46 @@ __global__ void computaC(float * A, float * B, float * C, const int k, const int
 
 }
 
-__global__ void computaC_v2(float * A, float * B, float * C, const int i, const int istart, const int iend) {
 
-    // int istart = k * bSize, iend = istart + bSize; // k es el numero de bloque
+__global__ void computaC_compartida(float * A, float * B, float * C, const int i, const int istart, const int iend, const int size) {
+    extern __shared__ float sdataA [];
+    extern __shared__ float sdataB [];
 
-    // int i = (blockIdx.y * blockDim.y + threadIdx.y) + istart;
+    int tid = threadIdx.x;
+
     int j = (blockIdx.x * blockDim.x + threadIdx.x) + istart;
 
-    // int index = (blockIdx.y * blockDim.y + threadIdx.y) + i;
+    if (j < size){
+        sdataA[j] = A[j];
+        sdataB[j] = B[j];
+    }
+
+    if (j < iend){
+        float a = sDataA[j] * i;
+
+        if ( (int)ceil(a) % 2 == 0 ){
+            atomicAdd(&C[i], sdataA + sdataB[j]);
+        }
+        else{
+            atomicAdd(&C[i], sdataA - sdataB[j]);
+
+        }
+        __syncthreads();
+    }
+}
+
+__global__ void computaC_global(float * A, float * B, float * C, const int i, const int istart, const int iend) {
+    int j = (blockIdx.x * blockDim.x + threadIdx.x) + istart;
+
     int index = i;
 
     if (j < iend){
         float a = A[j] * index;
 
         if ( (int)ceil(a) % 2 == 0 ){
-            // C[index] += a + B[j];
             atomicAdd(&C[i], a + B[j]);
         }
         else{
-            // C[index] += a - B[j];
             atomicAdd(&C[i], a - B[j]);
         }
     }
@@ -72,31 +92,20 @@ __global__ void computaC_v2(float * A, float * B, float * C, const int i, const 
 
 
 __global__ void calculaMaximoC(float * C, float * C_mx, float size) {
-        extern __shared__ float sdata[];
-    extern __shared__ float mx;
+    extern __shared__ float sdata[];
 
-
-        int tid = threadIdx.x;
+    int tid = threadIdx.x;
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    sdata[tid] = ((i < (size)) ? static_cast<float>(C[i]) : 0.0f);
-    __syncthreads();
-    
-    if(tid == 0)
-        mx = 0;
-
+    sdata[tid] = ((i < (size)) ? (C[i]) : 0.0f);
     __syncthreads();
 
-
-        // Do reduction in shared memory
+    // Do reduction in shared memory
     for (int s=blockDim.x/2; s>0; s>>=1) {
-                if (tid < s) {
-            if(sdata[tid+s] >= mx){
-                            sdata[tid] = sdata[tid + s];
-                mx = sdata[tid + s];
-            }
-                }
-                __syncthreads();
+        if (tid < s) {
+            sdata[tid] = max(sdata[tid], sdata[tid+s]);
         }
+        __syncthreads();
+    }
 
     if (tid == 0) 
         C_mx[blockIdx.x] = sdata[0];
@@ -105,52 +114,43 @@ __global__ void calculaMaximoC(float * C, float * C_mx, float size) {
 
 __global__ void calculaMaximoTotal(float * C, float * C_out, float size){
     extern __shared__ float sdata[];
-    extern __shared__ float mx;
 
-
-        int tid = threadIdx.x;
+    int tid = threadIdx.x;
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    sdata[tid] = ((i < (size)) ? static_cast<float>(C[i]) : 0.0f);
-    __syncthreads();
-  
-    if(tid == 0)
-        mx = C[0];
-
+    sdata[tid] = ((i < (size)) ? (C[i]) : 0.0f);
     __syncthreads();
 
 
-        // Do reduction in shared memory
+    // Do reduction in shared memory
     for (int s=blockDim.x/2; s>0; s>>=1) {
-                if (tid < s) {
-            if(sdata[tid+s] >= mx){
-                            sdata[tid] = sdata[tid + s];
-                mx = sdata[tid + s];
-            }
-                }
-                __syncthreads();
+        if (tid < s) {
+            sdata[tid] = max(sdata[tid], sdata[tid+s]);
         }
         __syncthreads();
+    }
+
     if (tid == 0) 
-        //C_out[blockIdx.x] = sdata[0];
-        C_out[0] = mx;
+        C_out[blockIdx.x] = sdata[0];
 }
+
 
 __global__ void computaD(float * C, float * D, float size) {
     extern __shared__ float sdataD[];
 
-        int tid = threadIdx.x;
+    int tid = threadIdx.x;
     int i = blockIdx.x * blockDim.x + threadIdx.x;
-    sdataD[tid] = ((i < (size)) ? static_cast<float>(C[i]) : 0.0f);
+
+    float valor = ((i < size) ? C[i] : 0.0f);
+    sdataD[tid] = valor;
     __syncthreads();
 
-
-        // Do reduction in shared memory
+    // Do reduction in shared memory
     for (int s=blockDim.x/2; s>0; s>>=1) {
-                if (tid < s) {
+        if (tid < s) {
             sdataD[tid] += sdataD[tid + s];
-                }
-                __syncthreads();
         }
+        __syncthreads();
+    }
 
     if (tid == 0) 
         D[blockIdx.x] = sdataD[0];
@@ -174,6 +174,8 @@ int main (int argc, char *argv[]) {
 
     int nBlocks = atoi(argv[1]);
     int bSize = atoi(argv[2]);
+
+    
 
     //Get GPU information
     int num_devices,devID;
@@ -217,15 +219,16 @@ int main (int argc, char *argv[]) {
     int N = nBlocks * bSize;
         int size = (nBlocks*bSize)*sizeof(float);
     int sizeD = nBlocks*sizeof(float);
-    cout << "size: " << size << endl;
-    cout << "sizeD: " << sizeD << endl;
+
+    // cout << "size: " << size << endl;
+    // cout << "sizeD: " << sizeD << endl;
 
     float * C_mx = new float[size];
 
-    float * A = new float[size];
-    float * B = new float[size];
-    float * C = new float[size];
-    float * D = new float[sizeD];
+    float * A = new float[nBlocks*bSize];
+    float * B = new float[nBlocks*bSize];
+    float * C = new float[nBlocks*bSize]; // antes size
+    float * D = new float[nBlocks];
 
     float * C_out = new float[size];
 
@@ -271,7 +274,7 @@ int main (int argc, char *argv[]) {
 
 
     inicializarVectores<<<nBlocks,bSize>>>(d_A, d_B, size);
-
+    cudaDeviceSynchronize();
     err =cudaMemcpy(A, d_A, size, cudaMemcpyDeviceToHost);
         if (err != cudaSuccess) {
                 cout << "ERROR CUDA MEM. COPY A" << endl;
@@ -282,26 +285,28 @@ int main (int argc, char *argv[]) {
                 cout << "ERROR CUDA MEM. COPY B" << endl;
         } 
 
-
+    int smemSizeC = nBlocks*bSize;
     for (int k = 0; k < nBlocks; k++){
-        // computaC<<<nBlocks, bSize, smemSize>>>(d_A, d_B, d_C, k, bSize);
 
         int istart = k * bSize; 
         int iend = istart + bSize;
         
         for (int i = istart; i < iend; i++){
             C[i] = 0.0;
-            computaC_v2<<<nBlocks, bSize>>>(d_A, d_B, d_C, i, istart, iend);
+            computaC_global<<<nBlocks, bSize>>>(d_A, d_B, d_C, i, istart, iend);
+            cudaDeviceSynchronize();
+            // computaC_compartida<<<nBlocks, bSize, smemSizeC>>>(d_A, d_B, d_C, i, istart, iend, size);
         }
     }
-
+    cudaDeviceSynchronize();
+    Tgpu=(clock()-time)/CLOCKS_PER_SEC;
 
     // Calculo del maximo
-    // float * mx = 0;
     int smemSize = bSize*sizeof(float);
+
     calculaMaximoC<<<nBlocks, bSize, smemSize>>>(d_C, d_C_mx, size);
     
-    computaD<<<nBlocks, bSize, smemSize>>>(d_C, d_D, sizeD);
+    computaD<<<nBlocks, bSize, smemSize>>>(d_C, d_D, size);
 
     calculaMaximoTotal<<<nBlocks, bSize, smemSize>>>(d_C_mx, d_C_out, nBlocks);
 
@@ -340,36 +345,36 @@ int main (int argc, char *argv[]) {
     cout << endl;
 
     // Imprimir matriz C
-    for (int i=0; i<N; i++){
-        cout << "C["<<i<<"]: " << C[i] << endl;
-    }
+    // for (int i=0; i<N; i++){
+    //     cout << "C["<<i<<"]: " << C[i] << endl;
+    // } 
+    
+    // Imprimir matriz C_out
+    // for (int i=0; i<N; i++){
+    //     cout << "C_out["<<i<<"]: " << C_out[i] << endl;
+    // }
 
 
     // Imprimir matriz C_mx
-    for (int i=0; i<nBlocks; i++){
-        cout << "C_mx["<<i<<"]: " << C_mx[i] << endl;
-    }
+    // for (int i=0; i<nBlocks; i++){
+    //     cout << "C_mx["<<i<<"]: " << C_mx[i] << endl;
+    // }
 
     cout << endl;
 
     // Imprimir matriz D
-    for (int i = 0; i < nBlocks; i++){
-        cout << "D["<<i<<"]: " << D[i] << endl;
-    }
+    // for (int i = 0; i < nBlocks; i++){
+    //     cout << "D["<<i<<"]: " << D[i] << endl;
+    // }
 
     float d_max = C_out[0];
 
     // Imprimir maximo total
-    cout << "Máximo --> C_out[0]: " << d_max << endl;
-     for (int i=0; i<size; i++){
-         if (C_out[i] != 0) {
-                cout << "C_out["<<i<<"]: " << C_out[i] << endl;
-         }
-     }
+    cout << "Máximo --> C_out[0]: " << d_max << endl << endl;
 
-
+/*
         Tgpu=(clock()-time)/CLOCKS_PER_SEC;
-
+*/
         cout << "Time spent on GPU= " << Tgpu << endl << endl;
 
     //**************************************************************************
@@ -445,6 +450,7 @@ int main (int argc, char *argv[]) {
   
   bool errors=false;
   float epsilon = 0.0000000000000001f; //Umbral para comprobar fallo de coma flotante
+//   float epsilon = 0.1f; //Umbral para comprobar fallo de coma flotante
 
   // Error Checking (CPU vs. GPU)
 
@@ -525,4 +531,3 @@ int main (int argc, char *argv[]) {
     delete[] h_C;
     delete[] h_D;
 }
-
