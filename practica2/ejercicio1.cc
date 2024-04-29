@@ -36,20 +36,21 @@ int main(int argc, char * argv[]) {
         n = atoi(argv[1]);
 
     x = new float[n]; // reservamos espacio para el vector x (n floats).
+    int raizP = sqrt(numeroProcesos);
 
-   MPI_Comm comm_diagonal,     // comunicador para los procesos diagonales
+    MPI_Comm comm_diagonal,     // comunicador para los procesos diagonales
                 comm_filas,     // comunicador para las filas
                 comm_columnas;  // comunicador para las columnas
 
 
-    int color = id_Proceso % n; // columnas
+    int color = id_Proceso % raizP; // columnas
 
     MPI_Comm_split (MPI_COMM_WORLD,     // a partir del comunicador global
                     color,              // los del mismo color entraran en el mismo comunicador
                     id_Proceso,         // indica el orden de asignacion de rango dentro del nuevo comm
                     &comm_columnas);    // referencia al nuevo comunicador
     
-    color = id_Proceso / n; // filas
+    color = id_Proceso / raizP; // filas
 
     MPI_Comm_split (MPI_COMM_WORLD,     // a partir del comunicador global
                     color,              // los del mismo color entraran en el mismo comunicador
@@ -57,16 +58,16 @@ int main(int argc, char * argv[]) {
                     &comm_filas);       // referencia al nuevo comunicador
 
 
-    int fila = id_Proceso / n;
-    int columna = id_Proceso % n;
-    cout << "\tfila: " << fila << ", columna: " << columna << endl;
+    int fila = id_Proceso / raizP;
+    int columna = id_Proceso % raizP;
+    // cout << "\tfila: " << fila << ", columna: " << columna << endl;
     if (fila == columna) {
-        cout << "DENTRO IF: fila: " << fila << ", columna: " << columna << endl;
+        // cout << "DENTRO IF: fila: " << fila << ", columna: " << columna << endl;
         color = 0;
     }
-    // else {
-    //     color = 1;
-    // }
+    else {
+        color = MPI_UNDEFINED;
+    }
 
     int result = MPI_Comm_split (MPI_COMM_WORLD,     // a partir del comunicador global
                     color,              // los del mismo color entraran en el mismo comunicador
@@ -89,11 +90,14 @@ int main(int argc, char * argv[]) {
             }
         }
     }
-    
-    // if (id_Proceso == 0)
-    //     for (int i = 0; i < n; i++) {
-    //         cout << "x["<<i<<"]: " << x[i] << endl;
-    //     }
+
+    if (id_Proceso == 0) {
+        for (int i = 0; i <  n; i++) {
+            for (int j = 0; j < n; j++) {
+                cout << "A[" << i * n + j << "] => " << A[i*n+j] << endl;
+            }
+        }
+    }
 
     ////////
 
@@ -101,17 +105,18 @@ int main(int argc, char * argv[]) {
     // ......
     // ......
 
-    int raiz_P = sqrt(numeroProcesos);
-    int tam = n / raiz_P;
-    float size = n*n;
+    int tam = n / raizP;
+    int size = n*n;
     int fila_P, columna_P;
     int comienzo;
 
     /* Creo buffer de envío para almacenar los datos empaquetados */
     float * buf_envio = new float[n*n];
 
-    float * buf_recv = new float[n*n];
+    float * buf_recv = new float[tam*tam];
 
+    // /*Creo un buffer de recepcion*/
+    float * buf_recep = new float[tam*tam];
     if (id_Proceso==0)
     {
         /* Obtiene matriz local a repartir */
@@ -124,57 +129,58 @@ int main(int argc, char * argv[]) {
         MPI_Type_commit (&MPI_BLOQUE);
 
         /* Empaqueta bloque a bloque en el buffer de envío*/
-        // for (int i = 0, posicion = 0; i < size; i++)
-        // {
-        //     /* Calculo la posicion de comienzo de cada submatriz */
-        //     fila_P = i / raiz_P;
-        //     columna_P = i % raiz_P;
-        //     comienzo = (columna_P*tam) + (fila_P*tam*tam*raiz_P);
-        //     MPI_Pack (&A[comienzo], 1, MPI_BLOQUE,
-        //         buf_envio, sizeof(float)*n*n, &posicion, MPI_COMM_WORLD);
-        // }
+        for (int i = 0, posicion = 0; i < size; i++)
+        {
+            /* Calculo la posicion de comienzo de cada submatriz */
+            fila_P = i / raizP;
+            columna_P = i % raizP;
+            comienzo = (columna_P*tam) + (fila_P*tam*tam*raizP);
+            MPI_Pack (&A[comienzo], 1, MPI_BLOQUE,
+                buf_envio, sizeof(float)*n*n, &posicion, MPI_COMM_WORLD);
+        }
 
-            
-        // /*Creo un buffer de recepcion*/
-        // float * buf_recep = new float[tam*tam];
 
-        // cout << "antes de scatter de packed" << endl;
-        // /* Distribuimos la matriz entre los procesos */
-        // MPI_Scatter (buf_envio, sizeof(float)*tam*tam, MPI_PACKED,
-        //                 buf_recep, tam*tam, MPI_FLOAT, 0, MPI_COMM_WORLD);
-        // cout << "despues de scatter de packed" << endl;
+        /*Destruye la matriz local*/
+        free(A);
 
-        // /*Destruye la matriz local*/
-        // free(A);
-
-        // /* Libero el tipo bloque*/
-        // MPI_Type_free (&MPI_BLOQUE);
+        /* Libero el tipo bloque*/
+        MPI_Type_free (&MPI_BLOQUE);
     }
-    else {
-        // MPI_Unpack()
+
+    /* Distribuimos la matriz entre los procesos */
+    MPI_Scatter (buf_envio, sizeof(float)*tam*tam, MPI_PACKED,
+                    buf_recep, tam*tam, MPI_FLOAT, 0, MPI_COMM_WORLD);
+
+    if (id_Proceso != 0){
+
+    }
+    int posicion = 0;
+    MPI_Unpack(buf_recep, sizeof(float)*tam*tam, &posicion,
+                buf_recv, tam*tam, MPI_FLOAT, MPI_COMM_WORLD);
+
+    for (int i = 0; i < tam*tam; ++i) {
+        // cout << "P[" << id_Proceso << "] => buf_recv[" << i << "]: " << buf_recv[i] << endl;
     }
 
     /////////
 
+    // Imprimir x
+    // if (id_Proceso == 0){
+    //     for (int i=0; i<n; i++) {
+    //         cout << "x["<<i<<"]= " << x[i] << endl;
+    //     }
+    // }
 
-    if (id_Proceso == 0){
-        cout << "*********" << endl;
-        for (int i=0; i<n; i++) {
-            cout << "x["<<i<<"]= " << x[i] << endl;
-        }
-    }
+    int tam_x_local = n / raizP;
 
-    int tam_x_local = n / sqrt(numeroProcesos);
-
-    if(id_Proceso == 0){
-        cout << "tam_x_local: " << tam_x_local << endl;
-        cout << "*********" << endl; 
-    }
-    // cout << "tam_x_local: " << tam_x_local << endl;
     float * x_local = new float[tam_x_local];
-
-    if (id_Proceso == 0){
-        MPI_Scatter(
+    
+    for (int i=0; i<tam_x_local; i++){
+        x_local[i] = 0.0f;
+    }
+    
+    if(fila == columna){
+        int resultScatter = MPI_Scatter(
             &x[0],
             tam_x_local,
             MPI_FLOAT,
@@ -184,14 +190,32 @@ int main(int argc, char * argv[]) {
             0,
             comm_diagonal
         );
+
     }
 
-    if (fila == columna){
-        for (int i = 0; i < tam_x_local; i++){
-            cout << "-->Proceso " << id_Proceso << ": x_local[" << i << "]: " << x_local[i] << endl << endl;
-        }
+    MPI_Barrier(MPI_COMM_WORLD);
+
+
+    int resultBcast = MPI_Bcast(&x_local[0],         // Dato a compartir
+        tam_x_local,                // Numero de elementos que se van a enviar y recibir
+        MPI_FLOAT,                  // Tipo de dato que se compartira
+        fila,                 // Proceso raiz que envia los datos
+        comm_columnas               // Comunicador utilizado (En este caso, el global)
+    );             
+
+    for (int i = 0; i <  tam_x_local; ++i){
+        cout << "P[" << id_Proceso << "] => x_local[" << i << "]: "  << x_local[i] << endl;
     }
+
+    // if (fila == columna){
+    //     // cout << "fila: " << fila << " columna: " << columna << " id_Proceso: " << id_Proceso <<" tam_x_local: " <<tam_x_local << endl;
+    //     for (int i = 0; i < tam_x_local; i++){
+    //         cout << "-->Proceso " << id_Proceso << ": x_local[" << i << "]: " << x_local[i] << endl << endl;
+    //     }
+    // }
         
+    MPI_Barrier(MPI_COMM_WORLD);
+    MPI_Barrier(comm_diagonal);
 
     // Cada proceso reserva espacio para su porción de A y para el vector x 
     const int local_A_size = n*n / numeroProcesos;
