@@ -36,40 +36,42 @@ int main(int argc, char * argv[]) {
         n = atoi(argv[1]);
 
     x = new float[n]; // reservamos espacio para el vector x (n floats).
+    int raizP = sqrt(numeroProcesos);
 
-   MPI_Comm comm_diagonal,     // comunicador para los procesos diagonales
+    MPI_Comm comm_diagonal,     // comunicador para los procesos diagonales
                 comm_filas,     // comunicador para las filas
                 comm_columnas;  // comunicador para las columnas
 
 
-    int color = id_Proceso % n; // columnas
+    int colorColumna = id_Proceso % raizP; // columnas
 
     MPI_Comm_split (MPI_COMM_WORLD,     // a partir del comunicador global
-                    color,              // los del mismo color entraran en el mismo comunicador
+                    colorColumna,              // los del mismo color entraran en el mismo comunicador
                     id_Proceso,         // indica el orden de asignacion de rango dentro del nuevo comm
                     &comm_columnas);    // referencia al nuevo comunicador
     
-    color = id_Proceso / n; // filas
+    int colorFila = id_Proceso / raizP; // filas
 
     MPI_Comm_split (MPI_COMM_WORLD,     // a partir del comunicador global
-                    color,              // los del mismo color entraran en el mismo comunicador
+                    colorFila,              // los del mismo color entraran en el mismo comunicador
                     id_Proceso,         // indica el orden de asignacion de rango dentro del nuevo comm
                     &comm_filas);       // referencia al nuevo comunicador
 
 
-    int fila = id_Proceso / n;
-    int columna = id_Proceso % n;
-    cout << "\tfila: " << fila << ", columna: " << columna << endl;
+    int fila = id_Proceso / raizP;
+    int columna = id_Proceso % raizP;
+    int colorDiag;
+    // cout << "\tfila: " << fila << ", columna: " << columna << endl;
     if (fila == columna) {
-        cout << "DENTRO IF: fila: " << fila << ", columna: " << columna << endl;
-        color = 0;
+        // cout << "DENTRO IF: fila: " << fila << ", columna: " << columna << endl;
+        colorDiag = 0;
     }
-    // else {
-    //     color = 1;
-    // }
+    else {
+        colorDiag = MPI_UNDEFINED;
+    }
 
     int result = MPI_Comm_split (MPI_COMM_WORLD,     // a partir del comunicador global
-                    color,              // los del mismo color entraran en el mismo comunicador
+                    colorDiag,              // los del mismo color entraran en el mismo comunicador
                     id_Proceso,         // indica el orden de asignacion de rango dentro del nuevo comm
                     &comm_diagonal);    // referencia al nuevo comunicador
 
@@ -89,11 +91,15 @@ int main(int argc, char * argv[]) {
             }
         }
     }
-    
-    // if (id_Proceso == 0)
-    //     for (int i = 0; i < n; i++) {
-    //         cout << "x["<<i<<"]: " << x[i] << endl;
+
+    // Imprimir A
+    // if (id_Proceso == 0) {
+    //     for (int i = 0; i <  n; i++) {
+    //         for (int j = 0; j < n; j++) {
+    //             cout << "A[" << i * n + j << "] => " << A[i*n+j] << endl;
+    //         }
     //     }
+    // }
 
     ////////
 
@@ -101,17 +107,18 @@ int main(int argc, char * argv[]) {
     // ......
     // ......
 
-    int raiz_P = sqrt(numeroProcesos);
-    int tam = n / raiz_P;
-    float size = n*n;
+    int tam = n / raizP;
+    int size = n*n;
     int fila_P, columna_P;
     int comienzo;
 
     /* Creo buffer de envío para almacenar los datos empaquetados */
     float * buf_envio = new float[n*n];
 
-    float * buf_recv = new float[n*n];
+    float * buf_recv = new float[tam*tam];
 
+    // /*Creo un buffer de recepcion*/
+    float * buf_recep = new float[tam*tam];
     if (id_Proceso==0)
     {
         /* Obtiene matriz local a repartir */
@@ -124,57 +131,61 @@ int main(int argc, char * argv[]) {
         MPI_Type_commit (&MPI_BLOQUE);
 
         /* Empaqueta bloque a bloque en el buffer de envío*/
-        // for (int i = 0, posicion = 0; i < size; i++)
-        // {
-        //     /* Calculo la posicion de comienzo de cada submatriz */
-        //     fila_P = i / raiz_P;
-        //     columna_P = i % raiz_P;
-        //     comienzo = (columna_P*tam) + (fila_P*tam*tam*raiz_P);
-        //     MPI_Pack (&A[comienzo], 1, MPI_BLOQUE,
-        //         buf_envio, sizeof(float)*n*n, &posicion, MPI_COMM_WORLD);
-        // }
+        for (int i = 0, posicion = 0; i < size; i++)
+        {
+            /* Calculo la posicion de comienzo de cada submatriz */
+            fila_P = i / raizP;
+            columna_P = i % raizP;
+            comienzo = (columna_P*tam) + (fila_P*tam*tam*raizP);
+            MPI_Pack (&A[comienzo], 1, MPI_BLOQUE,
+                buf_envio, sizeof(float)*n*n, &posicion, MPI_COMM_WORLD);
+        }
 
-            
-        // /*Creo un buffer de recepcion*/
-        // float * buf_recep = new float[tam*tam];
 
-        // cout << "antes de scatter de packed" << endl;
-        // /* Distribuimos la matriz entre los procesos */
-        // MPI_Scatter (buf_envio, sizeof(float)*tam*tam, MPI_PACKED,
-        //                 buf_recep, tam*tam, MPI_FLOAT, 0, MPI_COMM_WORLD);
-        // cout << "despues de scatter de packed" << endl;
-
-        // /*Destruye la matriz local*/
+        /*Destruye la matriz local*/
         // free(A);
 
-        // /* Libero el tipo bloque*/
-        // MPI_Type_free (&MPI_BLOQUE);
+        /* Libero el tipo bloque*/
+        MPI_Type_free (&MPI_BLOQUE);
     }
-    else {
-        // MPI_Unpack()
+
+    /* Distribuimos la matriz entre los procesos */
+    MPI_Scatter (buf_envio, sizeof(float)*tam*tam, MPI_PACKED,
+                    buf_recep, tam*tam, MPI_FLOAT, 0, MPI_COMM_WORLD);
+
+    if (id_Proceso != 0){
+
     }
+    int posicion = 0;
+    MPI_Unpack(buf_recep, sizeof(float)*tam*tam, &posicion,
+                buf_recv, tam*tam, MPI_FLOAT, MPI_COMM_WORLD);
+
+
+    
+
+    // for (int i = 0; i < tam*tam; ++i) {
+    //     cout << "P[" << id_Proceso << "] => buf_recv[" << i << "]: " << buf_recv[i] << endl;
+    // }
 
     /////////
 
-
+    // Imprimir x
     if (id_Proceso == 0){
-        cout << "*********" << endl;
         for (int i=0; i<n; i++) {
             cout << "x["<<i<<"]= " << x[i] << endl;
         }
     }
 
-    int tam_x_local = n / sqrt(numeroProcesos);
+    int tam_x_local = n / raizP; 
 
-    if(id_Proceso == 0){
-        cout << "tam_x_local: " << tam_x_local << endl;
-        cout << "*********" << endl; 
-    }
-    // cout << "tam_x_local: " << tam_x_local << endl;
     float * x_local = new float[tam_x_local];
-
-    if (id_Proceso == 0){
-        MPI_Scatter(
+    
+    for (int i=0; i<tam_x_local; i++){
+        x_local[i] = 0.0f;
+    }
+    
+    if(fila == columna){
+        int resultScatter = MPI_Scatter(
             &x[0],
             tam_x_local,
             MPI_FLOAT,
@@ -184,68 +195,81 @@ int main(int argc, char * argv[]) {
             0,
             comm_diagonal
         );
+
     }
 
-    if (fila == columna){
-        for (int i = 0; i < tam_x_local; i++){
-            cout << "-->Proceso " << id_Proceso << ": x_local[" << i << "]: " << x_local[i] << endl << endl;
-        }
-    }
-        
-
-    // Cada proceso reserva espacio para su porción de A y para el vector x 
-    const int local_A_size = n*n / numeroProcesos;
-    const int local_y_size = n / numeroProcesos;
-    local_A = new float[local_A_size];  //reservamos espacio para la matriz (n x n floats)
-    local_y = new float[local_y_size]; //reservamos espacio para el vector y (n/num_procs floats).
-    
-     // Repartimos una bloque de filas de A a cada proceso
-    MPI_Scatter(A,       // Matriz que vamos a compartir
-        local_A_size,    // Numero de filas a entregar
-        MPI_FLOAT,       // Tipo de dato a enviar
-        local_A,         // Vector en el que almacenar los datos
-        local_A_size,    // Numero de filas a recibir
-        MPI_FLOAT,       // Tipo de dato a recibir
-        0,               // Proceso raiz que envia los datos
-        MPI_COMM_WORLD); // Comunicador utilizado (En este caso, el global)
-
-    // Difundimos el vector x entre todas los procesos
-    MPI_Bcast(x,         // Dato a compartir
-        n,               // Numero de elementos que se van a enviar y recibir
-        MPI_FLOAT,       // Tipo de dato que se compartira
-        0,               // Proceso raiz que envia los datos
-        MPI_COMM_WORLD); // Comunicador utilizado (En este caso, el global)
+    int resultBcast = MPI_Bcast(x_local,         // Dato a compartir
+        tam_x_local,                // Numero de elementos que se van a enviar y recibir
+        MPI_FLOAT,                  // Tipo de dato que se compartira
+        columna,                 // Proceso raiz que envia los datos
+        comm_columnas               // Comunicador utilizado (En este caso, el global)
+    );             
 
 
     // Hacemos una barrera para asegurar que todas los procesos comiencen la ejecucion
     // a la vez, para tener mejor control del tiempo empleado
     MPI_Barrier(MPI_COMM_WORLD);
+
+    
+    const int local_y_size = tam_x_local;
+    local_y = new  float[local_y_size]; //reservamos espacio para el vector y (n/num_procsfloats).
+
     // Inicio de medicion de tiempo
     tInicio = MPI_Wtime();
 
+    // Multiplicación
     for (int i = 0; i < local_y_size; i++) {
         local_y[i] = 0.0;
-        for (int j = 0; j < n; j++) {
-            local_y[i] += local_A[i*n+j] * x[j];
+        for (int j = 0; j < local_y_size; j++) {
+            local_y[i] += buf_recv[i*n+j] * x_local[j];
         }
     }
 
-    MPI_Barrier(MPI_COMM_WORLD);
     // fin de medicion de tiempo
     Tpar = MPI_Wtime()-tInicio;
+
+    // for (int i = 0; i < local_y_size; ++i) {
+    //     cout << "-->P[" << id_Proceso << "] => local_y[" << i << "]: " << local_y[i] << endl;
+    // }
+
+    
+    float * local_y_red = new  float[local_y_size]; //reservamos espacio para el vector y (n/num_procsfloats).
+
+    int resultReduce = MPI_Reduce (local_y,
+                local_y_red,
+                local_y_size,
+                MPI_FLOAT,
+                MPI_SUM,
+                fila,
+                comm_filas);
+
+
+    if (fila == columna)
+        cout << "P("<<id_Proceso<<") local_y_red[0]: " << local_y_red[0] << endl;
+
+    MPI_Barrier(MPI_COMM_WORLD);
+
+
 
     // Recogemos los datos de la multiplicacion, por cada proceso sera un escalar
     // y se recoge en un vector, Gather se asegura de que la recolecci�n se haga
     // en el mismo orden en el que se hace el Scatter, con lo que cada escalar
     // acaba en su posicion correspondiente del vector.
-    MPI_Gather(local_y,      // Dato que envia cada proceso
-            local_y_size,    // Numero de elementos que se envian
-            MPI_FLOAT,       // Tipo del dato que se envia
-            y,               // Vector en el que se recolectan los datos
-            local_y_size,    // Numero de datos que se esperan recibir por cada proceso
-            MPI_FLOAT,       // Tipo del dato que se recibira
-            0,               // proceso que va a recibir los datos
-            MPI_COMM_WORLD); // Canal de comunicacion (Comunicador Global)
+    if (fila == columna)
+        MPI_Gather(local_y_red,      // Dato que envia cada proceso
+                local_y_size,    // Numero de elementos que se envian
+                MPI_FLOAT,       // Tipo del dato que se envia
+                y,               // Vector en el que se recolectan los datos
+                local_y_size,    // Numero de datos que se esperan recibir por cada proceso
+                MPI_FLOAT,       // Tipo del dato que se recibira
+                0,               // proceso que va a recibir los datos
+                comm_diagonal); // Canal de comunicacion (Comunicador Global)
+
+
+    if (id_Proceso == 0)
+        for (int i = 0; i < 2; i++) {
+            cout << "y["<<i<<"]= " << y[i] << endl;
+        }
 
     // Terminamos la ejecucion de los procesos, despues de esto solo existira
     // el proceso 0
@@ -278,9 +302,9 @@ int main(int argc, char * argv[]) {
         }
          cout << ".......Obtained and expected result can be seen above......." << endl;
 
-        delete [] y;
+        // delete [] y;
         delete [] comprueba;
-        delete [] A;
+        // delete [] A;
 
         if (errores) {
             cout << "Found " << errores << " Errors!!!" << endl;
@@ -294,8 +318,8 @@ int main(int argc, char * argv[]) {
     }
     
 
-    delete [] local_A;
-    delete [] local_y;
+    // delete [] local_A;
+    // delete [] local_y;
     delete [] x;
 
     return 0;
