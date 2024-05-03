@@ -61,9 +61,7 @@ int main(int argc, char * argv[]) {
     int fila = id_Proceso / raizP;
     int columna = id_Proceso % raizP;
     int colorDiag;
-    // cout << "\tfila: " << fila << ", columna: " << columna << endl;
     if (fila == columna) {
-        // cout << "DENTRO IF: fila: " << fila << ", columna: " << columna << endl;
         colorDiag = 0;
     }
     else {
@@ -92,7 +90,7 @@ int main(int argc, char * argv[]) {
         }
     }
 
-    // Imprimir A
+    // DEBUG: Imprimir A
     // if (id_Proceso == 0) {
     //     for (int i = 0; i <  n; i++) {
     //         for (int j = 0; j < n; j++) {
@@ -104,11 +102,9 @@ int main(int argc, char * argv[]) {
     ////////
 
     MPI_Datatype MPI_BLOQUE;
-    // ......
-    // ......
 
     int tam = n / raizP;
-    int size = n*n;
+    int size = numeroProcesos;
     int fila_P, columna_P;
     int comienzo;
 
@@ -117,13 +113,12 @@ int main(int argc, char * argv[]) {
 
     float * buf_recv = new float[tam*tam];
 
-    // /*Creo un buffer de recepcion*/
+    cout << "tam*tam= " << tam*tam << endl;
+
+    /*Creo un buffer de recepcion*/
     float * buf_recep = new float[tam*tam];
     if (id_Proceso==0)
     {
-        /* Obtiene matriz local a repartir */
-        // Inicializa_matriz(n, n, A);
-        
         /*Defino el tipo bloque cuadrado */
         MPI_Type_vector (tam, tam, n, MPI_FLOAT, &MPI_BLOQUE);
 
@@ -141,10 +136,6 @@ int main(int argc, char * argv[]) {
                 buf_envio, sizeof(float)*n*n, &posicion, MPI_COMM_WORLD);
         }
 
-
-        /*Destruye la matriz local*/
-        // free(A);
-
         /* Libero el tipo bloque*/
         MPI_Type_free (&MPI_BLOQUE);
     }
@@ -153,31 +144,21 @@ int main(int argc, char * argv[]) {
     MPI_Scatter (buf_envio, sizeof(float)*tam*tam, MPI_PACKED,
                     buf_recep, tam*tam, MPI_FLOAT, 0, MPI_COMM_WORLD);
 
-    if (id_Proceso != 0){
-
-    }
     int posicion = 0;
     MPI_Unpack(buf_recep, sizeof(float)*tam*tam, &posicion,
                 buf_recv, tam*tam, MPI_FLOAT, MPI_COMM_WORLD);
 
 
-    
-
-    // for (int i = 0; i < tam*tam; ++i) {
-    //     cout << "P[" << id_Proceso << "] => buf_recv[" << i << "]: " << buf_recv[i] << endl;
-    // }
-
     /////////
 
-    // Imprimir x
-    if (id_Proceso == 0){
-        for (int i=0; i<n; i++) {
-            cout << "x["<<i<<"]= " << x[i] << endl;
-        }
-    }
+    // DEBUG: Imprimir x
+    // if (id_Proceso == 0){
+    //     for (int i=0; i<n; i++) {
+    //         cout << "x["<<i<<"]= " << x[i] << endl;
+    //     }
+    // }
 
     int tam_x_local = n / raizP; 
-
     float * x_local = new float[tam_x_local];
     
     for (int i=0; i<tam_x_local; i++){
@@ -198,13 +179,12 @@ int main(int argc, char * argv[]) {
 
     }
 
-    int resultBcast = MPI_Bcast(x_local,         // Dato a compartir
-        tam_x_local,                // Numero de elementos que se van a enviar y recibir
-        MPI_FLOAT,                  // Tipo de dato que se compartira
-        columna,                 // Proceso raiz que envia los datos
-        comm_columnas               // Comunicador utilizado (En este caso, el global)
-    );             
-
+    int resultBcast = MPI_Bcast(x_local,   // Dato a compartir
+        tam_x_local,                       // Numero de elementos que se van a enviar y recibir
+        MPI_FLOAT,                         // Tipo de dato que se compartira
+        columna,                           // Proceso raiz que envia los datos
+        comm_columnas                      // Comunicador utilizado (En este caso, el global)
+    );    
 
     // Hacemos una barrera para asegurar que todas los procesos comiencen la ejecucion
     // a la vez, para tener mejor control del tiempo empleado
@@ -220,17 +200,13 @@ int main(int argc, char * argv[]) {
     // Multiplicación
     for (int i = 0; i < local_y_size; i++) {
         local_y[i] = 0.0;
-        for (int j = 0; j < local_y_size; j++) {
-            local_y[i] += buf_recv[i*n+j] * x_local[j];
+        for (int j = 0; j < tam_x_local; j++) {
+            local_y[i] += buf_recv[i*tam_x_local+j] * x_local[j];
         }
     }
 
     // fin de medicion de tiempo
     Tpar = MPI_Wtime()-tInicio;
-
-    // for (int i = 0; i < local_y_size; ++i) {
-    //     cout << "-->P[" << id_Proceso << "] => local_y[" << i << "]: " << local_y[i] << endl;
-    // }
 
     
     float * local_y_red = new  float[local_y_size]; //reservamos espacio para el vector y (n/num_procsfloats).
@@ -243,9 +219,6 @@ int main(int argc, char * argv[]) {
                 fila,
                 comm_filas);
 
-
-    if (fila == columna)
-        cout << "P("<<id_Proceso<<") local_y_red[0]: " << local_y_red[0] << endl;
 
     MPI_Barrier(MPI_COMM_WORLD);
 
@@ -265,11 +238,6 @@ int main(int argc, char * argv[]) {
                 0,               // proceso que va a recibir los datos
                 comm_diagonal); // Canal de comunicacion (Comunicador Global)
 
-
-    if (id_Proceso == 0)
-        for (int i = 0; i < 2; i++) {
-            cout << "y["<<i<<"]= " << y[i] << endl;
-        }
 
     // Terminamos la ejecucion de los procesos, despues de esto solo existira
     // el proceso 0
@@ -302,25 +270,27 @@ int main(int argc, char * argv[]) {
         }
          cout << ".......Obtained and expected result can be seen above......." << endl;
 
-        // delete [] y;
+        delete [] y;
         delete [] comprueba;
-        // delete [] A;
+        delete [] A;
 
-        if (errores) {
+        // if (errores) {
             cout << "Found " << errores << " Errors!!!" << endl;
-        } else {
+        // } else {
             cout << "No Errors!" << endl<<endl;
             cout << "...Parallel time (without initial distribution and final gathering)= " << Tpar << " seconds." << endl<<endl;
             cout << "...Sequential time= " << Tseq << " seconds." << endl<<endl;
 
-        }
+            cout << "S (tseq/tpar) = " << Tseq / Tpar << endl;
+        // }
 
     }
     
 
-    // delete [] local_A;
-    // delete [] local_y;
+    delete [] local_y;
+    delete [] local_y_red;
     delete [] x;
+    delete [] x_local;
 
     return 0;
 
