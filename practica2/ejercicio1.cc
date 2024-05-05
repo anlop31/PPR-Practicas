@@ -46,14 +46,14 @@ int main(int argc, char * argv[]) {
     int colorColumna = id_Proceso % raizP; // columnas
 
     MPI_Comm_split (MPI_COMM_WORLD,     // a partir del comunicador global
-                    colorColumna,              // los del mismo color entraran en el mismo comunicador
+                    colorColumna,       // los del mismo color entraran en el mismo comunicador
                     id_Proceso,         // indica el orden de asignacion de rango dentro del nuevo comm
                     &comm_columnas);    // referencia al nuevo comunicador
     
     int colorFila = id_Proceso / raizP; // filas
 
     MPI_Comm_split (MPI_COMM_WORLD,     // a partir del comunicador global
-                    colorFila,              // los del mismo color entraran en el mismo comunicador
+                    colorFila,          // los del mismo color entraran en el mismo comunicador
                     id_Proceso,         // indica el orden de asignacion de rango dentro del nuevo comm
                     &comm_filas);       // referencia al nuevo comunicador
 
@@ -68,10 +68,10 @@ int main(int argc, char * argv[]) {
         colorDiag = MPI_UNDEFINED;
     }
 
-    int result = MPI_Comm_split (MPI_COMM_WORLD,     // a partir del comunicador global
-                    colorDiag,              // los del mismo color entraran en el mismo comunicador
-                    id_Proceso,         // indica el orden de asignacion de rango dentro del nuevo comm
-                    &comm_diagonal);    // referencia al nuevo comunicador
+    int result = MPI_Comm_split (MPI_COMM_WORLD,    // a partir del comunicador global
+                    colorDiag,                      // los del mismo color entraran en el mismo comunicador
+                    id_Proceso,                     // indica el orden de asignacion de rango dentro del nuevo comm
+                    &comm_diagonal);                // referencia al nuevo comunicador
 
 
 
@@ -90,15 +90,6 @@ int main(int argc, char * argv[]) {
         }
     }
 
-    // DEBUG: Imprimir A
-    // if (id_Proceso == 0) {
-    //     for (int i = 0; i <  n; i++) {
-    //         for (int j = 0; j < n; j++) {
-    //             cout << "A[" << i * n + j << "] => " << A[i*n+j] << endl;
-    //         }
-    //     }
-    // }
-
     ////////
 
     MPI_Datatype MPI_BLOQUE;
@@ -112,8 +103,6 @@ int main(int argc, char * argv[]) {
     float * buf_envio = new float[n*n];
 
     float * buf_recv = new float[tam*tam];
-
-    cout << "tam*tam= " << tam*tam << endl;
 
     /*Creo un buffer de recepcion*/
     float * buf_recep = new float[tam*tam];
@@ -151,20 +140,14 @@ int main(int argc, char * argv[]) {
 
     /////////
 
-    // DEBUG: Imprimir x
-    // if (id_Proceso == 0){
-    //     for (int i=0; i<n; i++) {
-    //         cout << "x["<<i<<"]= " << x[i] << endl;
-    //     }
-    // }
-
     int tam_x_local = n / raizP; 
     float * x_local = new float[tam_x_local];
     
-    for (int i=0; i<tam_x_local; i++){
+    for (int i = 0; i < tam_x_local; i++){
         x_local[i] = 0.0f;
     }
     
+    // Scatter del vector x entre los procesos de la diagonal
     if(fila == columna){
         int resultScatter = MPI_Scatter(
             &x[0],
@@ -179,11 +162,13 @@ int main(int argc, char * argv[]) {
 
     }
 
-    int resultBcast = MPI_Bcast(x_local,   // Dato a compartir
+    // Broadcast en las columnas para los subvectores de x
+    int resultBcast = MPI_Bcast(
+        x_local,                           // Dato a compartir
         tam_x_local,                       // Numero de elementos que se van a enviar y recibir
         MPI_FLOAT,                         // Tipo de dato que se compartira
         columna,                           // Proceso raiz que envia los datos
-        comm_columnas                      // Comunicador utilizado (En este caso, el global)
+        comm_columnas                      // Comunicador utilizado 
     );    
 
     // Hacemos una barrera para asegurar que todas los procesos comiencen la ejecucion
@@ -192,7 +177,7 @@ int main(int argc, char * argv[]) {
 
     
     const int local_y_size = tam_x_local;
-    local_y = new  float[local_y_size]; //reservamos espacio para el vector y (n/num_procsfloats).
+    local_y = new  float[local_y_size]; //reservamos espacio para el vector y
 
     // Inicio de medicion de tiempo
     tInicio = MPI_Wtime();
@@ -211,7 +196,8 @@ int main(int argc, char * argv[]) {
     
     float * local_y_red = new  float[local_y_size]; //reservamos espacio para el vector y (n/num_procsfloats).
 
-    int resultReduce = MPI_Reduce (local_y,
+    int resultReduce = MPI_Reduce (
+                local_y,
                 local_y_red,
                 local_y_size,
                 MPI_FLOAT,
@@ -229,14 +215,14 @@ int main(int argc, char * argv[]) {
     // en el mismo orden en el que se hace el Scatter, con lo que cada escalar
     // acaba en su posicion correspondiente del vector.
     if (fila == columna)
-        MPI_Gather(local_y_red,      // Dato que envia cada proceso
+        MPI_Gather(local_y_red,  // Dato que envia cada proceso
                 local_y_size,    // Numero de elementos que se envian
                 MPI_FLOAT,       // Tipo del dato que se envia
                 y,               // Vector en el que se recolectan los datos
                 local_y_size,    // Numero de datos que se esperan recibir por cada proceso
                 MPI_FLOAT,       // Tipo del dato que se recibira
                 0,               // proceso que va a recibir los datos
-                comm_diagonal); // Canal de comunicacion (Comunicador Global)
+                comm_diagonal);  // Canal de comunicacion (Comunicador diagonal)
 
 
     // Terminamos la ejecucion de los procesos, despues de esto solo existira
@@ -265,24 +251,24 @@ int main(int argc, char * argv[]) {
         int errores = 0;
         for (unsigned int i = 0; i < n; i++) {   
             cout << "\t" << y[i] << "\t|\t" << comprueba[i] << endl;
-            if (comprueba[i] != y[i])
+            if (fabs((comprueba[i] - y[i])/comprueba[i])>1.0e-3)
                 errores++;
         }
-         cout << ".......Obtained and expected result can be seen above......." << endl;
+        cout << ".......Obtained and expected result can be seen above......." << endl;
 
         delete [] y;
         delete [] comprueba;
         delete [] A;
 
-        // if (errores) {
+        if (errores) {
             cout << "Found " << errores << " Errors!!!" << endl;
-        // } else {
+        } else {
             cout << "No Errors!" << endl<<endl;
             cout << "...Parallel time (without initial distribution and final gathering)= " << Tpar << " seconds." << endl<<endl;
             cout << "...Sequential time= " << Tseq << " seconds." << endl<<endl;
 
             cout << "S (tseq/tpar) = " << Tseq / Tpar << endl;
-        // }
+        }
 
     }
     
