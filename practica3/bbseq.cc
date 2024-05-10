@@ -40,7 +40,7 @@ int main (int argc, char **argv) {
 	activo = !Inconsistente(tsp0);
         double t=MPI::Wtime();
 	while (activo) {       // ciclo del Branch&Bound
-		Ramifica (&nodo, &lnodo, &rnodo, tsp0);		
+		Ramifica (&nodo, &lnodo, &rnodo, tsp0);		//crea los hijos
 		nueva_U = false;
 		if (Solucion(&rnodo)) {
 			if (rnodo.ci() < U) {    // se ha encontrado una solucion mejor
