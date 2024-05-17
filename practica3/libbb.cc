@@ -65,6 +65,25 @@ void LeerMatriz (char archivo[], int** tsp) {
   printf ("-------------------------------------------------------------\n");
 }
 
+void LeerMatriz1D(char archivo[], int* tsp) {
+  FILE *fp;
+  int i, j, r;
+
+  if (!(fp = fopen(archivo, "r" ))) {
+    printf ("ERROR abriendo archivo %s en modo lectura.\n", archivo);
+    exit(1);
+  }
+  printf ("-------------------------------------------------------------\n");
+  for (i=0; i<NCIUDADES; i++) {
+    for (j=0; j<NCIUDADES; j++) {
+      r=fscanf( fp, "%d", &tsp[i * NCIUDADES + j]);
+      printf ("%3d", tsp[i * NCIUDADES + j]);
+    }
+    r=fscanf (fp, "\n");
+    printf ("\n");
+  }
+  printf ("-------------------------------------------------------------\n");  
+}
 
 bool Inconsistente (int** tsp) {
   int  fila, columna;
@@ -390,9 +409,25 @@ int ** reservarMatrizCuadrada(unsigned int orden) {
 	return m;
 }
 
+int * reservarMatrizCuadrada1D(unsigned int orden) {
+  int* m = new int[orden * orden];
+
+  for (unsigned int i = 0; i < orden; ++i) {
+    for (unsigned int j = 0; j < orden; ++j) {
+      m[i * orden + j] = i * orden + j;
+    }
+  }
+
+  return m;
+}
+
 // Libera la memoria dinamica usada por matriz "m"
 void liberarMatriz(int** m) {
 	delete [] m[0];
 	delete [] m;
+}
+
+void liberarMatriz1D(int* m) {
+  delete[] m;
 }
 

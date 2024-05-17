@@ -113,6 +113,8 @@ class tPila{
 
 void LeerMatriz (char archivo[], int** tsp) ;
 
+void LeerMatriz1D (char archivo[], int* tsp) ;
+
 bool Inconsistente  (int** tsp);
   /* tsp   -  matriz de inicidencia del problema o subproblema            */
   /* Si un subproblema tiene en alguna fila o columna todas sus entradas  */
@@ -208,6 +210,8 @@ void EscribeNodo (tNodo *nodo);
 /* ******************************************************************** */
 // Funciones para reserva dinamica de memoria
 int ** reservarMatrizCuadrada(unsigned int orden);
+int * reservarMatrizCuadrada1D(unsigned int orden);
 void liberarMatriz(int** m);
+void liberarMatriz1D(int* m);
 /* ******************************************************************** */
 
