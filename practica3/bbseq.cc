@@ -27,9 +27,9 @@ int main (int argc, char **argv) {
 			lnodo,        // hijo izquierdo
 			rnodo,        // hijo derecho
 			solucion;     // mejor solucion
-	bool activo,        // condicion de fin
-		nueva_U;       // hay nuevo valor de c.s.
-	int  U;             // valor de c.s.
+	bool activo,          // condicion de fin
+		nueva_U;       	  // hay nuevo valor de c.s.
+	int  U;               // valor de c.s.
 	int iteraciones = 0;
 	tPila pila;         // pila de nodos a explorar
 

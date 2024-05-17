@@ -84,32 +84,99 @@ Dijkstra () {
 
 Equilibrado_Carga(tPila * pila, bool *fin)
 {
-
     if (Vacia(pila))
-    { // el proceso no tiene trabajo: pide a otros procesos
-        Enviar peticion de trabajo al proceso(id + 1) % P;
+    { 
+        // el proceso no tiene trabajo: pide a otros procesos
+        // Enviar peticion de trabajo al proceso(id + 1) % P;
+        MPI_Send(
+            rank,               //ID de proceso que envia
+            1,                  //Numero de elementos enviados
+            MPI_INT,         //Tipo de mensaje
+            (rank+1) % size,    //Destinatario del mensaje (siguiente proceso en anillo)
+            0,                  // Tag
+            MPI_COMM_WORLD      //Comunicador por el que se envia
+        );
+
+        // tag -> 0: peticion de trabajo
         while (Vacia(pila) && !fin)
         {
-            Esperar mensaje de otro proceso;
-            switch (tipo de mensaje)
+            int source;
+
+            if (rank == 0){
+                source = size - 1;
+            }
+            else {
+                source = rank - 1;
+            }
+
+            MPI_Status status_probe;
+
+            // Esperar mensaje de otro proceso;
+            MPI_Probe(
+                source,         // De donde espera recibir el mensaje
+                MPI_ANY_TAG,    // Espera cualquier tag
+                MPI_COMM_WORLD, // Comunicador global
+                &status_probe   // Estado del probe
+            );
+
+            switch (status_probe.MPI_TAG)
             {
-            case PETIC:
+            case 0: // Si es petición de trabajo (0)
                 // peticion de trabajo
-                Recibir mensaje de peticion de trabajo;
-                if (solicitante == id)
+                // Recibir mensaje de peticion de trabajo;
+                int peticion_trabajo; // id de quien lo solicita
+                MPI_Status status_recv;
+                MPI_Recv(
+                    peticion_trabajo,       // Donde recibe
+                    status_probe.size,      // Tamaño del mensaje
+                    MPI_INT,                // Tipo de dato del mensaje
+                    source,                 // De donde espera recibir
+                    status_probe.MPI_TAG,   // Tag
+                    MPI_COMM_WORLD,         // Comunicador global
+                    &status_recv            // Estado de receive
+                );
+
+                if (status_recv.MPI_SOURCE == rank) // solicitante = id
                 {
                     // peticion devuelta
-                    Reenviar peticion de trabajo al proceso(id + 1) % P;
-                    Iniciar deteccion de posible situacion de fin;
+                    // Reenviar peticion de trabajo al proceso(id + 1) % P;
+                    MPI_Send(
+                        rank,                   //ID de proceso que envia
+                        status_recv.size,       //Numero de elementos enviados
+                        MPI_Status,             //Tipo de mensaje
+                        (rank+1) % size,        //Destinatario del mensaje (siguiente proceso en anillo)
+                        status_recv.MPI_TAG,    // Tag
+                        MPI_COMM_WORLD          //Comunicador por el que se envia
+                    );
+                    // Iniciar deteccion de posible situacion de fin;
                 }
                 else
                     // peticion de otro proceso: la retransmite al siguiente
-                    Pasar peticion de trabajo al proceso(id + 1) % P;
+                    // Pasar peticion de trabajo al proceso(id + 1) % P;
+                    MPI_Send(
+                        rank,                   //ID de proceso que envia
+                        status_recv.size,       //Numero de elementos enviados
+                        MPI_Status,             //Tipo de mensaje
+                        (rank+1) % size,        //Destinatario del mensaje (siguiente proceso en anillo)
+                        status_recv.MPI_TAG,    // Tag
+                        MPI_COMM_WORLD          //Comunicador por el que se envia
+                    );
                     break;
-            case NODOS:
+            case 1: // Si recibe nodos (1)
                 // resultado de una peticion de trabajo
-                Recibir nodos del proceso donante;
-                Almacenar nodos recibidos en la pila;
+                // Recibir nodos del proceso donante;
+                int peticion_trabajo; // id de quien lo solicita
+                MPI_Status status_recv;
+                MPI_Recv(
+                    peticion_trabajo,       // Donde recibe
+                    status_probe.size,      // Tamaño del mensaje
+                    MPI_INT,                // Tipo de dato del mensaje
+                    source,                 // De donde espera recibir
+                    status_probe.MPI_TAG,   // Tag
+                    MPI_COMM_WORLD,         // Comunicador global
+                    &status_recv            // Estado de receive
+                );
+                // Almacenar nodos recibidos en la pila;
                 break;
             }
         }
@@ -117,14 +184,41 @@ Equilibrado_Carga(tPila * pila, bool *fin)
 
     if (!fin)
     { // el proceso tiene nodos para trabajar
-        Sondear si hay mensajes pendientes de otros procesos;
+        // Sondear si hay mensajes pendientes de otros procesos;
+        int * flag;
+        MPI_Status status_iprobe;
+        MPI_Iprobe(
+            MPI_ANY_SOURCE,
+            MPI_ANY_TAG,
+            MPI_COMM_WORLD,
+            &flag,
+            &status_iprobe
+        );
+
         while (hay mensajes)
         { // atiende peticiones mientras haya mensajes
-            Recibir mensaje de peticion de trabajo;
-            if (hay suficientes nodos en la pila para ceder)
-                Enviar nodos al proceso solicitante;
-                else Pasar peticion de trabajo al proceso(id + 1) % P;
-            Sondear si hay mensajes pendientes de otros procesos;
+            // Recibir mensaje de peticion de trabajo;
+            int peticion_trabajo; // id de quien lo solicita
+            MPI_Status status_recv;
+            MPI_Recv(
+                peticion_trabajo,       // Donde recibe
+                status_probe.size,      // Tamaño del mensaje
+                MPI_INT,                // Tipo de dato del mensaje
+                source,                 // De donde espera recibir
+                status_probe.MPI_TAG,   // Tag
+                MPI_COMM_WORLD,         // Comunicador global
+                &status_recv            // Estado de receive
+            );
+            
+            if (pila->tamanio > 2){
+                // Enviar nodos al proceso solicitante;
+                
+            }
+            else{
+                // Pasar peticion de trabajo al proceso(id + 1) % P;
+            }
+            
+            // Sondear si hay mensajes pendientes de otros procesos;
         }
     }
 }
@@ -164,6 +258,15 @@ int main(int argc, char **argv)
 
     }
     // ... Difusión matriz del problema inicial del proceso 0 al resto
+    MPI_Bcast (
+        tsp0,
+        NCIUDADES,
+        MPI_INT,
+        0,
+        MPI_COMM_WORLD
+    );
+
+
     
     if (id != 0) {
         Equilibrar_Carga(&pila, &fin);
@@ -197,10 +300,17 @@ int main(int argc, char **argv)
                 Push(&pila, &nodo_izq);
         }
 
+        // Se difunde la cota superior
         Difusion_Cota_Superior(&U);
+
+        // Si hay nueva cota superior
         if (hay_nueva_cota_superior)
-            Acotar(&pila, U);
+            Acotar(&pila, U); // Se cambia la cota de la pila actual
+
+        // Se equilibra la carga de la pila
         Equilibrado_Carga(&pila, &fin);
+
+        
         if (!fin)
             Pop(&pila, &nodo);
     }
