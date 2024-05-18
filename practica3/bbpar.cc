@@ -8,219 +8,226 @@ using namespace std;
 
 unsigned int NCIUDADES;
 int rank, size;
+const int PETIC = 0, 
+          NODOS = 1;
+
+const int MENSAJE_TRABAJO = 0,
+          MENSAJE_PETICION = 1,
+          MENSAJE_TOKEN = 2,
+          TRABAJO_AGOTADO = 3;
 
 void Difusion_Cota_Superior() {
-    // if (difundir_cs_local && !pendiente_retorno_cs)
-    // {
-    //     Enviar valor local de cs al proceso(id + 1) % P;
-    //     pendiente_retorno_cs = TRUE;
-    //     difundir_cs_local = FALSE;
-    // }
+    bool difundir_cs_local = true;
+    bool pendiente_retorno_cs = false;
+
+    if (difundir_cs_local && !pendiente_retorno_cs)
+    {
+        // Enviar valor local de cs al proceso(id + 1) % P;
+        pendiente_retorno_cs = true;
+        difundir_cs_local = false;
+    }
     // Sondear si hay mensajes de cota superior pendientes;
-    // while (hay mensajes)
-    // {
-    //     Recibir mensaje con valor de cota superior desde el proceso(id - 1 + P) % P;
-    //     Actualizar valor local de cota superior;
-    //     if (origen mensaje == id && difundir_cs_local)
-    //     {
-    //         Enviar valor local de cs al proceso(id + 1) % P;
-    //         pendiente_retorno_cs = TRUE;
-    //         difundir_cs_local = FALSE;
-    //     }
-    //     else if (origen mensaje == id && !difundir_cs_local)
-    //         pendiente_retorno_cs = FALSE;
-    //     else
-    //         // origen mensaje == otro proceso
-    //         Reenviar mensaje al proceso(id + 1) % P;
-    //     Sondear si hay mensajes de cota superior pendientes;
-    // }
+    while (hay mensajes)
+    {
+        // Recibir mensaje con valor de cota superior desde el proceso(id - 1 + P) % P;
+        // Actualizar valor local de cota superior;
+        if (origen mensaje == id && difundir_cs_local)
+        {
+            // Enviar valor local de cs al proceso(id + 1) % P;
+            pendiente_retorno_cs = true;
+            difundir_cs_local = false;
+        }
+        else if (origen mensaje == id && !difundir_cs_local)
+            pendiente_retorno_cs = false;
+        else
+            // origen mensaje == otro proceso
+            // Reenviar mensaje al proceso(id + 1) % P;
+        // Sondear si hay mensajes de cota superior pendientes;
+    }
 }
 
 void Dijkstra () {
     // P(id)
     //     ...Esperar evento;
-    // switch (tipo_evento)
-    // {
-    // case MENSAJE_TRABAJO:
-    //     estado = ACTIVO;
-    // 9 case MENSAJE_PETICION:
-    //     if (hay trabajo para ceder)
-    //     {
-    //         j = origen(PETICION);
-    //         Enviar TRABAJO a P(j);
-    //         if (id < j)
-    //             mi_color = NEGRO;
-    //     }
-    // case MENSAJE_TOKEN:
-    //     token_presente = TRUE;
-    //     if (estado == PASIVO)
-    //     {
-    //         if (id == 0 && mi_color == BLANCO && color(TOKEN) == BLANCO)
-    //             TERMINACION DETECTADA;
-    //         else
+    // switch (tipo_evento){
+    //     case MENSAJE_TRABAJO:
+    //         estado = ACTIVO;
+    //     case MENSAJE_PETICION:
+    //         if (hay trabajo para ceder)
     //         {
+    //             j = origen(PETICION);
+    //             Enviar TRABAJO a P(j);
+    //             if (id < j)
+    //                 mi_color = NEGRO;
+    //         }
+    //     case MENSAJE_TOKEN:
+    //         token_presente = TRUE;
+    //         if (estado == PASIVO)
+    //         {
+    //             if (id == 0 && mi_color == BLANCO && color(TOKEN) == BLANCO)
+    //                 TERMINACION DETECTADA;
+    //             else
+    //             {
+    //                 if (id == 0)
+    //                     color(TOKEN) = BLANCO;
+    //                 else if (mi_color == NEGRO)
+    //                     color(TOKEN) = NEGRO;
+    //                 Enviar TOKEN a P(id - 1);
+    //                 mi_color = BLANCO;
+    //                 token_presente = FALSE;
+    //             }
+    //         }
+    //     case TRABAJO_AGOTADO:
+    //         estado = PASIVO;
+    //         if (token_presente)
     //             if (id == 0)
     //                 color(TOKEN) = BLANCO;
     //             else if (mi_color == NEGRO)
     //                 color(TOKEN) = NEGRO;
-    //             Enviar TOKEN a P(id - 1);
-    //             mi_color = BLANCO;
-    //             token_presente = FALSE;
-    //         }
-    //     }
-    // case TRABAJO_AGOTADO:
-    //     estado = PASIVO;
-    //     if (token_presente)
-    //         if (id == 0)
-    //             color(TOKEN) = BLANCO;
-    //         else if (mi_color == NEGRO)
-    //             color(TOKEN) = NEGRO;
-    //     Enviar TOKEN a P(id - 1);
-    //     mi_color = BLANCO;
-    //     token_presente = FALSE;
-    //     ...
+    //         Enviar TOKEN a P(id - 1);
+    //         mi_color = BLANCO;
+    //         token_presente = FALSE;
+    //         ...
     // }
 }
 
 void Equilibrado_Carga(tPila * pila, bool *fin)
 {
-    // if (Vacia(pila))
-    // { 
-    //     // el proceso no tiene trabajo: pide a otros procesos
-    //     // Enviar peticion de trabajo al proceso(id + 1) % P;
-    //     MPI_Send(
-    //         rank,               //ID de proceso que envia
-    //         1,                  //Numero de elementos enviados
-    //         MPI_INT,         //Tipo de mensaje
-    //         (rank+1) % size,    //Destinatario del mensaje (siguiente proceso en anillo)
-    //         0,                  // Tag
-    //         MPI_COMM_WORLD      //Comunicador por el que se envia
-    //     );
+    if (pila.vacia())
+    { 
+        // el proceso no tiene trabajo: pide a otros procesos
+        // Enviar peticion de trabajo al proceso(id + 1) % P;
+        MPI_Send(
+            rank,               //ID de proceso que envia
+            1,                  //Numero de elementos enviados
+            MPI_INT,            //Tipo de mensaje
+            (rank+1) % size,    //Destinatario del mensaje (siguiente proceso en anillo)
+            PETIC,              // Tag de peticion de trabajo
+            MPI_COMM_WORLD      //Comunicador por el que se envia
+        );
 
-    //     // tag -> 0: peticion de trabajo
-    //     while (Vacia(pila) && !fin)
-    //     {
-    //         int source;
+        // tag -> 0: peticion de trabajo
+        int source;
+        if (rank == 0){
+            source = size - 1;
+        }
+        else {
+            source = rank - 1;
+        }
+        while (pila.vacia() && !fin)
+        {
+            MPI_Status status_probe;
 
-    //         if (rank == 0){
-    //             source = size - 1;
-    //         }
-    //         else {
-    //             source = rank - 1;
-    //         }
+            // Esperar mensaje de otro proceso;
+            MPI_Probe(
+                source,         // De donde espera recibir el mensaje
+                MPI_ANY_TAG,    // Espera cualquier tag
+                MPI_COMM_WORLD, // Comunicador global
+                &status_probe   // Estado del probe
+            );
 
-    //         MPI_Status status_probe;
+            switch (status_probe.MPI_TAG){
+                case PETIC: // Si es petición de trabajo (0)
+                    // peticion de trabajo
+                    // Recibir mensaje de peticion de trabajo;
+                    int peticion_trabajo; // id de quien lo solicita
+                    MPI_Status status_recv;
+                    MPI_Recv(
+                        peticion_trabajo,       // Donde recibe
+                        status_probe.size,      // Tamaño del mensaje
+                        MPI_INT,                // Tipo de dato del mensaje
+                        source,                 // De donde espera recibir
+                        status_probe.MPI_TAG,   // Tag
+                        MPI_COMM_WORLD,         // Comunicador global
+                        &status_recv            // Estado de receive
+                    );
 
-    //         // Esperar mensaje de otro proceso;
-    //         MPI_Probe(
-    //             source,         // De donde espera recibir el mensaje
-    //             MPI_ANY_TAG,    // Espera cualquier tag
-    //             MPI_COMM_WORLD, // Comunicador global
-    //             &status_probe   // Estado del probe
-    //         );
+                    if (status_recv.MPI_SOURCE == rank) // solicitante = id
+                    {
+                        // peticion devuelta
+                        // Reenviar peticion de trabajo al proceso(id + 1) % P;
+                        MPI_Send(
+                            rank,                   //ID de proceso que envia
+                            status_recv.size,       //Numero de elementos enviados
+                            MPI_Status,             //Tipo de mensaje
+                            (rank+1) % size,        //Destinatario del mensaje (siguiente proceso en anillo)
+                            status_recv.MPI_TAG,    // Tag
+                            MPI_COMM_WORLD          //Comunicador por el que se envia
+                        );
+                        // Iniciar deteccion de posible situacion de fin;
+                    }
+                    else
+                        // peticion de otro proceso: la retransmite al siguiente
+                        // Pasar peticion de trabajo al proceso(id + 1) % P;
+                        MPI_Send(
+                            rank,                   //ID de proceso que envia
+                            status_recv.size,       //Numero de elementos enviados
+                            MPI_Status,             //Tipo de mensaje
+                            (rank+1) % size,        //Destinatario del mensaje (siguiente proceso en anillo)
+                            status_recv.MPI_TAG,    // Tag
+                            MPI_COMM_WORLD          //Comunicador por el que se envia
+                        );
+                        break;
+                case NODOS: // Si recibe nodos (1)
+                    // resultado de una peticion de trabajo
+                    // Recibir nodos del proceso donante;
+                    int peticion_trabajo; // id de quien lo solicita
+                    MPI_Status status_recv;
+                    MPI_Recv(
+                        peticion_trabajo,       // Donde recibe
+                        status_probe.size,      // Tamaño del mensaje
+                        MPI_INT,                // Tipo de dato del mensaje
+                        source,                 // De donde espera recibir
+                        status_probe.MPI_TAG,   // Tag
+                        MPI_COMM_WORLD,         // Comunicador global
+                        &status_recv            // Estado de receive
+                    );
+                    // Almacenar nodos recibidos en la pila;
+                    break;
+            }
+        }
+    }
 
-    //         switch (status_probe.MPI_TAG)
-    //         {
-    //         case 0: // Si es petición de trabajo (0)
-    //             // peticion de trabajo
-    //             // Recibir mensaje de peticion de trabajo;
-    //             int peticion_trabajo; // id de quien lo solicita
-    //             MPI_Status status_recv;
-    //             MPI_Recv(
-    //                 peticion_trabajo,       // Donde recibe
-    //                 status_probe.size,      // Tamaño del mensaje
-    //                 MPI_INT,                // Tipo de dato del mensaje
-    //                 source,                 // De donde espera recibir
-    //                 status_probe.MPI_TAG,   // Tag
-    //                 MPI_COMM_WORLD,         // Comunicador global
-    //                 &status_recv            // Estado de receive
-    //             );
+    if (!fin)
+    { // el proceso tiene nodos para trabajar
+        // Sondear si hay mensajes pendientes de otros procesos;
+        int * flag;
+        MPI_Status status_iprobe;
+        MPI_Iprobe(
+            MPI_ANY_SOURCE,
+            MPI_ANY_TAG,
+            MPI_COMM_WORLD,
+            &flag,
+            &status_iprobe
+        );
 
-    //             if (status_recv.MPI_SOURCE == rank) // solicitante = id
-    //             {
-    //                 // peticion devuelta
-    //                 // Reenviar peticion de trabajo al proceso(id + 1) % P;
-    //                 MPI_Send(
-    //                     rank,                   //ID de proceso que envia
-    //                     status_recv.size,       //Numero de elementos enviados
-    //                     MPI_Status,             //Tipo de mensaje
-    //                     (rank+1) % size,        //Destinatario del mensaje (siguiente proceso en anillo)
-    //                     status_recv.MPI_TAG,    // Tag
-    //                     MPI_COMM_WORLD          //Comunicador por el que se envia
-    //                 );
-    //                 // Iniciar deteccion de posible situacion de fin;
-    //             }
-    //             else
-    //                 // peticion de otro proceso: la retransmite al siguiente
-    //                 // Pasar peticion de trabajo al proceso(id + 1) % P;
-    //                 MPI_Send(
-    //                     rank,                   //ID de proceso que envia
-    //                     status_recv.size,       //Numero de elementos enviados
-    //                     MPI_Status,             //Tipo de mensaje
-    //                     (rank+1) % size,        //Destinatario del mensaje (siguiente proceso en anillo)
-    //                     status_recv.MPI_TAG,    // Tag
-    //                     MPI_COMM_WORLD          //Comunicador por el que se envia
-    //                 );
-    //                 break;
-    //         case 1: // Si recibe nodos (1)
-    //             // resultado de una peticion de trabajo
-    //             // Recibir nodos del proceso donante;
-    //             int peticion_trabajo; // id de quien lo solicita
-    //             MPI_Status status_recv;
-    //             MPI_Recv(
-    //                 peticion_trabajo,       // Donde recibe
-    //                 status_probe.size,      // Tamaño del mensaje
-    //                 MPI_INT,                // Tipo de dato del mensaje
-    //                 source,                 // De donde espera recibir
-    //                 status_probe.MPI_TAG,   // Tag
-    //                 MPI_COMM_WORLD,         // Comunicador global
-    //                 &status_recv            // Estado de receive
-    //             );
-    //             // Almacenar nodos recibidos en la pila;
-    //             break;
-    //         }
-    //     }
-    // }
-
-    // if (!fin)
-    // { // el proceso tiene nodos para trabajar
-    //     // Sondear si hay mensajes pendientes de otros procesos;
-    //     int * flag;
-    //     MPI_Status status_iprobe;
-    //     MPI_Iprobe(
-    //         MPI_ANY_SOURCE,
-    //         MPI_ANY_TAG,
-    //         MPI_COMM_WORLD,
-    //         &flag,
-    //         &status_iprobe
-    //     );
-
-    //     while (hay mensajes)
-    //     { // atiende peticiones mientras haya mensajes
-    //         // Recibir mensaje de peticion de trabajo;
-    //         int peticion_trabajo; // id de quien lo solicita
-    //         MPI_Status status_recv;
-    //         MPI_Recv(
-    //             peticion_trabajo,       // Donde recibe
-    //             status_probe.size,      // Tamaño del mensaje
-    //             MPI_INT,                // Tipo de dato del mensaje
-    //             source,                 // De donde espera recibir
-    //             status_probe.MPI_TAG,   // Tag
-    //             MPI_COMM_WORLD,         // Comunicador global
-    //             &status_recv            // Estado de receive
-    //         );
+        while (hay mensajes)
+        { 
+            // atiende peticiones mientras haya mensajes
+            // Recibir mensaje de peticion de trabajo;
+            int peticion_trabajo; // id de quien lo solicita
+            MPI_Status status_recv;
+            MPI_Recv(
+                peticion_trabajo,       // Donde recibe
+                status_probe.size,      // Tamaño del mensaje
+                MPI_INT,                // Tipo de dato del mensaje
+                source,                 // De donde espera recibir
+                status_probe.MPI_TAG,   // Tag
+                MPI_COMM_WORLD,         // Comunicador global
+                &status_recv            // Estado de receive
+            );
             
-    //         if (pila->tamanio > 2){
-    //             // Enviar nodos al proceso solicitante;
+            if (pila->tamanio > 2){
+                // Enviar nodos al proceso solicitante;
                 
-    //         }
-    //         else{
-    //             // Pasar peticion de trabajo al proceso(id + 1) % P;
-    //         }
+            }
+            else{
+                // Pasar peticion de trabajo al proceso(id + 1) % P;
+            }
             
-    //         // Sondear si hay mensajes pendientes de otros procesos;
-    //     }
-    // }
+            // Sondear si hay mensajes pendientes de otros procesos;
+        }
+    }
 }
 
 int main(int argc, char **argv)
@@ -254,13 +261,10 @@ int main(int argc, char **argv)
     //Inicializacion de la c.s.
     U = INFINITO;
 
-    // inicializa cota superior
     if (id_Proceso == 0){
         // Leer_Problema_Inicial(&nodo);
         LeerMatriz1D (argv[2], tsp0);    // lee matriz de fichero
     }
-
-    cout << "Proceso ID => " << id_Proceso << endl;
 
     // ... Difusión matriz del problema inicial del proceso 0 al resto
     MPI_Bcast (
@@ -272,19 +276,21 @@ int main(int argc, char **argv)
     );
 
     for (int i = 0; i < NCIUDADES; ++i){
-        cout << "P(" << id_Proceso << ") || fila " << i << " => \n";
+        cout << "P(" << id_Proceso << ") || fila " << i << " => ";
         for (int j = 0; j < NCIUDADES; ++j){
             cout << tsp0[i * NCIUDADES + j]<< " ";
         }
         cout << endl;
     }
 
-    
-    // if (id != 0) {
-    //     Equilibrar_Carga(&pila, &fin);
-    //     if (!fin)
-    //         Pop(&pila, &nodo);
-    // }
+    cout << endl;
+    bool fin = false;
+    if (id_Proceso != 0) {
+        Equilibrado_Carga(&pila, &fin);
+        if (!fin)
+            pila.pop(nodo);
+            //Pop(&pila, &nodo);
+    }
 
     // // Ciclo del B&B
     // while (!fin) {
