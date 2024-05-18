@@ -18,10 +18,10 @@ const int MENSAJE_TRABAJO = 0,
 
 const int ENVIO_CS = 0;
 
-void Difusion_Cota_Superior() {
+void Difusion_Cota_Superior(int cs) {
     bool difundir_cs_local = true;
     bool pendiente_retorno_cs = false;
-    int cs_local = 0
+    int cs_local = cs;
     if (difundir_cs_local && !pendiente_retorno_cs)
     {
         // Enviar valor local de cs al proceso(id + 1) % P;
