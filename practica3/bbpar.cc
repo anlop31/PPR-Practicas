@@ -16,33 +16,85 @@ const int MENSAJE_TRABAJO = 0,
           MENSAJE_TOKEN = 2,
           TRABAJO_AGOTADO = 3;
 
+const int ENVIO_CS = 0;
+
 void Difusion_Cota_Superior() {
     bool difundir_cs_local = true;
     bool pendiente_retorno_cs = false;
-
+    int cs_local = 0
     if (difundir_cs_local && !pendiente_retorno_cs)
     {
         // Enviar valor local de cs al proceso(id + 1) % P;
+        MPI_Send(
+            cs_local,           //ID de proceso que envia
+            1,                  //Numero de elementos enviados
+            MPI_INT,            //Tipo de mensaje
+            (rank+1) % size,    //Destinatario del mensaje (siguiente proceso en anillo)
+            ENVIO_CS,           // Tag de peticion de trabajo
+            MPI_COMM_WORLD      //Comunicador por el que se envia
+        );
         pendiente_retorno_cs = true;
         difundir_cs_local = false;
     }
     // Sondear si hay mensajes de cota superior pendientes;
-    while (hay mensajes)
+    MPI_Status status_probe;
+
+    MPI_Probe(
+        MPI_ANY_SOURCE, // De donde espera recibir el mensaje
+        ENVIO_CS,       // Espera cualquier tag
+        MPI_COMM_WORLD, // Comunicador global
+        &status_probe   // Estado del probe
+    );
+    while (status_probe.size != 0)
     {
         // Recibir mensaje con valor de cota superior desde el proceso(id - 1 + P) % P;
+        
+        MPI_Status status_recv;
+        MPI_Recv(
+            cs_local,                   // Donde recibe
+            1,                          // Tamaño del mensaje
+            MPI_INT,                    // Tipo de dato del mensaje
+            (rank - 1 + size) % size,   // De donde espera recibir
+            status_probe.MPI_TAG,   // Tag
+            ENVIO_CS,         // Comunicador global
+            &status_recv            // Estado de receive
+        );
+
         // Actualizar valor local de cota superior;
-        if (origen mensaje == id && difundir_cs_local)
-        {
+        if (status_recv.MPI_SOURCE == rank && difundir_cs_local) {
             // Enviar valor local de cs al proceso(id + 1) % P;
+            MPI_Send(
+                cs_local,           //ID de proceso que envia
+                1,                  //Numero de elementos enviados
+                MPI_INT,            //Tipo de mensaje
+                (rank+1) % size,    //Destinatario del mensaje (siguiente proceso en anillo)
+                ENVIO_CS,           // Tag de peticion de trabajo
+                MPI_COMM_WORLD      //Comunicador por el que se envia
+            );
             pendiente_retorno_cs = true;
             difundir_cs_local = false;
         }
-        else if (origen mensaje == id && !difundir_cs_local)
+        else if (status_recv.MPI_SOURCE == rank && !difundir_cs_local) {
             pendiente_retorno_cs = false;
-        else
-            // origen mensaje == otro proceso
+        }
+        else{ // origen mensaje == otro proceso
             // Reenviar mensaje al proceso(id + 1) % P;
+            MPI_Send(
+                cs_local,           //ID de proceso que envia
+                1,                  //Numero de elementos enviados
+                MPI_INT,            //Tipo de mensaje
+                (rank+1) % size,    //Destinatario del mensaje (siguiente proceso en anillo)
+                ENVIO_CS,           // Tag de peticion de trabajo
+                MPI_COMM_WORLD      //Comunicador por el que se envia
+            );
+        }
         // Sondear si hay mensajes de cota superior pendientes;
+        MPI_Probe(
+            MPI_ANY_SOURCE, // De donde espera recibir el mensaje
+            ENVIO_CS,       // Espera cualquier tag
+            MPI_COMM_WORLD, // Comunicador global
+            &status_probe   // Estado del probe
+        );
     }
 }
 
