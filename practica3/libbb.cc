@@ -16,12 +16,12 @@ const int TOKEN = 2;
 const int FIN = 3;
 
 // Estados en los que se puede encontrar un proceso
-const int ACTIVO = 0;
-const int PASIVO = 1;
+// const int ACTIVO = 0;
+// const int PASIVO = 1;
 
 // Colores que pueden tener tanto los procesos como el token
-const int BLANCO = 0;
-const int NEGRO = 1;
+// const int BLANCO = 0;
+// const int NEGRO = 1;
 
 
 // Comunicadores que usar� cada proceso
@@ -31,10 +31,10 @@ Intracomm comunicadorCota;	// Para la difusi�n de una nueva cota superior dete
 // Variables que indican el estado de cada proceso
 extern int rank;	 // Identificador del proceso dentro de cada comunicador (coincide en ambos)
 extern int size;	// N�mero de procesos que est�n resolviendo el problema
-int estado;	// Estado del proceso {ACTIVO, PASIVO}
-int color;	// Color del proceso {BLANCO,NEGRO}
-int color_token; 	// Color del token la �ltima vez que estaba en poder del proceso
-bool token_presente;  // Indica si el proceso posee el token
+// int estado;	// Estado del proceso {ACTIVO, PASIVO}
+// int color;	// Color del proceso {BLANCO,NEGRO}
+// int color_token; 	// Color del token la �ltima vez que estaba en poder del proceso
+// bool token_presente;  // Indica si el proceso posee el token
 int anterior;	// Identificador del anterior proceso
 int siguiente;	// Identificador del siguiente proceso
 bool difundir_cs_local;	// Indica si el proceso puede difundir su cota inferior local
