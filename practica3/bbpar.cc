@@ -8,19 +8,27 @@ using namespace std;
 
 unsigned int NCIUDADES;
 int rank, size;
-const int PETIC = 0, 
-          NODOS = 1;
 
+//Etiquetas para el equilibrado de carga
+const int PETICION = 0, 
+          TRABAJO = 1,
+          TESTIGO_DETECCION = 2,
+          FIN_DETECTADO = 3;
+
+//Etiquetas para la detección de fin
 const int MENSAJE_TRABAJO = 0,
           MENSAJE_PETICION = 1,
           MENSAJE_TOKEN = 2,
           TRABAJO_AGOTADO = 3;
 
+//Etiquetas para la difusión de cota superior
 const int ENVIO_CS = 0;
 
+//Flag para el estado del proceso
 const int PASIVO = 0,
           ACTIVO = 1;
 
+//Flag para el color del proceso
 const int NEGRO = 0,
           BLANCO = 1;
 
@@ -48,8 +56,7 @@ void Difusion_Cota_Superior(int id_Proceso, int size, int cs) {
             &cs_local,          //ID de proceso que envia
             1,                  //Numero de elementos enviados
             MPI_INT,            //Tipo de mensaje
-            siguiente % size,   //Destinatario del mensaje 
-                                //(siguiente proceso en anillo)
+            siguiente % size,   //Destinatario del mensaje
             ENVIO_CS,           // Tag de peticion de trabajo
             MPI_COMM_WORLD      //Comunicador por el que se envia
         );
@@ -59,11 +66,11 @@ void Difusion_Cota_Superior(int id_Proceso, int size, int cs) {
     // Sondear si hay mensajes de cota superior pendientes;
 
     MPI_Iprobe(
-        MPI_ANY_SOURCE,
-        ENVIO_CS,
-        MPI_COMM_WORLD,
-        &flag,
-        &status
+        MPI_ANY_SOURCE,         //ID del proceso que ha enviado mensaje
+        ENVIO_CS,               //Tag con el que se espera recibir el mensaje
+        MPI_COMM_WORLD,         //Comunicador utilizado
+        &flag,                  //Flag del probe
+        &status                 //MPI_Status del iprobe
     );
     while (flag)
     {
@@ -102,17 +109,17 @@ void Difusion_Cota_Superior(int id_Proceso, int size, int cs) {
                 1,                  //Numero de elementos enviados
                 MPI_INT,            //Tipo de mensaje
                 siguiente % size,   //Destinatario del mensaje 
-                ENVIO_CS,           // Tag de peticion de trabajo
+                ENVIO_CS,           //Tag de envío de cota superior
                 MPI_COMM_WORLD      //Comunicador por el que se envia
             );
         }
         // Sondear si hay mensajes de cota superior pendientes;
         MPI_Iprobe(
-            MPI_ANY_SOURCE,
-            ENVIO_CS,
-            MPI_COMM_WORLD,
-            &flag,
-            &status
+            MPI_ANY_SOURCE,         //ID del proceso que ha enviado mensaje
+            ENVIO_CS,               //Tag con el que se espera recibir el mensaje
+            MPI_COMM_WORLD,         //Comunicador utilizado
+            &flag,                  //Flag del iprobe
+            &status                 //MPI_Status del iprobe
         );
     }
 }
@@ -240,16 +247,16 @@ void Dijkstra (int id_Proceso, int size, int &estado, int &color, int &token, bo
 
 void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
 {
-    int source/* = id_Proceso == 0 ? size - 1 : id_Proceso - 1*/;
+    int anterior/* = id_Proceso == 0 ? size - 1 : id_Proceso - 1*/;
     int flag;
     MPI_Status status;
 
     int peticion_trabajo; // id de quien lo solicita
     if (id_Proceso == 0){
-        source = size - 1;
+        anterior = size - 1;
     }
     else {
-        source = id_Proceso - 1;
+        anterior = id_Proceso - 1;
     }
 
     int siguiente = id_Proceso + 1;
@@ -261,11 +268,10 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
             1,                   //Numero de elementos enviados
             MPI_INT,             //Tipo de mensaje
             siguiente % size,    //Destinatario del mensaje
-            PETIC,               // Tag de peticion de trabajo
+            PETICION,            // Tag de peticion de trabajo
             MPI_COMM_WORLD       //Comunicador por el que se envia
         );
 
-        // tag -> 0: peticion de trabajo
         while (pila->vacia() && !fin)
         {
             // Esperar mensaje de otro proceso;
@@ -285,7 +291,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                         1,                       // Tamaño del mensaje
                         MPI_INT,                 // Tipo de dato del mensaje
                         status.MPI_SOURCE,       // De donde espera recibir
-                        PETIC,                   // Tag
+                        PETICION,                // Tag
                         MPI_COMM_WORLD,          // Comunicador global
                         &status                  // Estado de receive
                     );
@@ -299,10 +305,11 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                             1,                //Numero de elementos enviados
                             MPI_INT,          //Tipo de mensaje
                             siguiente % size, //Destinatario del mensaje 
-                            PETIC,            // Tag
+                            PETICION,         // Tag
                             MPI_COMM_WORLD    //Comunicador por el que se envia
                         );
                         // Iniciar deteccion de posible situacion de fin;
+                        
                         //Cuando esté correcto el equilibrado de carga probar
                         //con la deteccion de fin
                         //Dijkstra(id_Proceso, size, estado, color, token, token_presente);
@@ -315,19 +322,19 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                             1,                   //Numero de elementos enviados
                             MPI_INT,             //Tipo de mensaje
                             siguiente % size,    //Destinatario del mensaje 
-                            PETIC,               // Tag
+                            PETICION,            // Tag
                             MPI_COMM_WORLD       //Comunicador por el que se envia
                         );
                         break;
-                case NODOS: // Si recibe nodos (1)
+                case TRABAJO: // Si recibe nodos (1)
                     // resultado de una peticion de trabajo
                     // Recibir nodos del proceso donante;
                     MPI_Recv(
                         &peticion_trabajo,      // Donde recibe
                         1,                      // Tamaño del mensaje
                         MPI_INT,                // Tipo de dato del mensaje
-                        source,                 // De donde espera recibir
-                        NODOS,                  // Tag
+                        anterior,               // De donde espera recibir
+                        TRABAJO,                  // Tag
                         MPI_COMM_WORLD,         // Comunicador global
                         &status                 // Estado de receive
                     );
@@ -359,8 +366,8 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                 &peticion_trabajo,      // Donde recibe
                 1,                      // Tamaño del mensaje
                 MPI_INT,                // Tipo de dato del mensaje
-                source,                 // De donde espera recibir
-                PETIC,                  // Tag
+                anterior,               // De donde espera recibir
+                PETICION,               // Tag
                 MPI_COMM_WORLD,         // Comunicador global
                 &status                 // Estado de receive
             );
@@ -373,7 +380,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                     1,                          //Numero de elementos enviados
                     MPI_INT,                    //Tipo de mensaje
                     siguiente % size,           //Destinatario del mensaje 
-                    NODOS,                      // Tag
+                    TRABAJO,                    // Tag
                     MPI_COMM_WORLD              //Comunicador por el que se envia
                 );
             }
@@ -383,8 +390,8 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                     &id_Proceso,                //ID de proceso que envia
                     1,                          //Numero de elementos enviados
                     MPI_INT,                    //Tipo de mensaje
-                    (id_Proceso + 1) % size,    //Destinatario del mensaje (siguiente proceso en anillo)
-                    PETIC,                      // Tag
+                    siguiente % size,           //Destinatario del mensaje (siguiente proceso en anillo)
+                    PETICION,                   // Tag
                     MPI_COMM_WORLD              //Comunicador por el que se envia
                 );
             }
