@@ -65,26 +65,6 @@ void LeerMatriz (char archivo[], int** tsp) {
   printf ("-------------------------------------------------------------\n");
 }
 
-void LeerMatriz1D(char archivo[], int* tsp) {
-  FILE *fp;
-  int i, j, r;
-
-  if (!(fp = fopen(archivo, "r" ))) {
-    printf ("ERROR abriendo archivo %s en modo lectura.\n", archivo);
-    exit(1);
-  }
-  printf ("-------------------------------------------------------------\n");
-  for (i=0; i<NCIUDADES; i++) {
-    for (j=0; j<NCIUDADES; j++) {
-      r=fscanf( fp, "%d", &tsp[i * NCIUDADES + j]);
-      printf ("%3d", tsp[i * NCIUDADES + j]);
-    }
-    r=fscanf (fp, "\n");
-    printf ("\n");
-  }
-  printf ("-------------------------------------------------------------\n");  
-}
-
 bool Inconsistente (int** tsp) {
   int  fila, columna;
   for (fila=0; fila<NCIUDADES; fila++) {   /* examina cada fila */
@@ -193,14 +173,21 @@ void EliminaCiclos(tNodo *nodo, int** tsp) {
 void ApuntaArcos(tNodo *nodo, int** tsp) {
   int i;
   tArco arco;
-
   for (arco.v=0; arco.v<NCIUDADES; arco.v++)
-    if ((arco.w=nodo->incl()[arco.v]) != NULO)
+    if ((arco.w=nodo->incl()[arco.v]) != NULO){
+      std::cout << "Antes PonArco" << std::endl;
       PonArco (tsp, arco);
+      std::cout << "Despues PonArco" << std::endl;
+    }     
+  std::cout << "Antes QuitaArco" << std::endl;
   for (arco.v=nodo->orig_excl(), i=0; i<NCIUDADES-2; i++)
     if ((arco.w=nodo->dest_excl()[i]) != NULO)
       QuitaArco (tsp, arco);
+    
+  std::cout << "Despues QuitaArco" << std::endl;
+  std::cout << "Antes EliminaCiclos" << std::endl;
   EliminaCiclos (nodo, tsp);
+  std::cout << "Despues EliminaCiclos" << std::endl;
 }
 
 void InfiereArcos(tNodo *nodo, int** tsp) {
@@ -274,12 +261,26 @@ void HijoDch (tNodo *nodo, tNodo *rnodo, int** tsp, tArco arco) {
 void Ramifica (tNodo *nodo, tNodo *lnodo, tNodo *rnodo, int** tsp0) {
   int** tsp = reservarMatrizCuadrada(NCIUDADES);
   tArco arco;
+  std::cout << "Antes reconstruye" << std::endl;
   Reconstruye (nodo, tsp0, tsp);
+
+  std::cout << "Despues reconstruye" << std::endl;
+  std::cout << "Antes EligeArco" << std::endl;
   EligeArco (nodo, tsp, &arco);
+  
+  std::cout << "Despues EligeArco" << std::endl;
+  std::cout << "Antes HijoIzq" << std::endl;
   HijoIzq (nodo, lnodo, tsp, arco);
+  
+  std::cout << "Despues Hijoizq" << std::endl;
+  std::cout << "Antes HijoDch" << std::endl;
   HijoDch (nodo, rnodo, tsp, arco);
+  
+  std::cout << "Despues HijoDch" << std::endl;
+  std::cout << "Antes liberarMatriz" << std::endl;
 
 	liberarMatriz(tsp);
+  std::cout << "Despues liberarMatriz" << std::endl;
 
 }
 
@@ -409,25 +410,8 @@ int ** reservarMatrizCuadrada(unsigned int orden) {
 	return m;
 }
 
-int * reservarMatrizCuadrada1D(unsigned int orden) {
-  int* m = new int[orden * orden];
-
-  for (unsigned int i = 0; i < orden; ++i) {
-    for (unsigned int j = 0; j < orden; ++j) {
-      m[i * orden + j] = i * orden + j;
-    }
-  }
-
-  return m;
-}
-
 // Libera la memoria dinamica usada por matriz "m"
 void liberarMatriz(int** m) {
 	delete [] m[0];
 	delete [] m;
 }
-
-void liberarMatriz1D(int* m) {
-  delete[] m;
-}
-

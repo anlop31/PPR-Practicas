@@ -71,8 +71,6 @@ class tPila{
 	public:
 		int tope;
 		int* nodos;
-
-		
 			
 		tPila(){
 			tope = 0;
@@ -112,8 +110,6 @@ class tPila{
 /* ********************************************************************* */
 
 void LeerMatriz (char archivo[], int** tsp) ;
-
-void LeerMatriz1D (char archivo[], int* tsp) ;
 
 bool Inconsistente  (int** tsp);
   /* tsp   -  matriz de inicidencia del problema o subproblema            */
@@ -179,12 +175,12 @@ void HijoIzq (tNodo *nodo, tNodo *lnodo, int** tsp, tArco arco);
   /* Dada la descripcion de trabajo 'nodo', la matriz de incidencia        */
   /* reducida 'tsp', construye la descripcion de trabajo 'l.nodo'          */
   /* a partir de la inclusion del arco                                     */
-
+  
 void HijoDch (tNodo *nodo, tNodo *rnodo, int** tsp, tArco arco);
   /* Dada la descripcion de trabajo 'nodo' y la matriz de incidencia */
   /* reducida 'tsp', construye la descripcion de trabajo 'r.nodo'    */
   /* a partir de la exclusion del arco <v,w>.                        */
-
+  
 void Ramifica (tNodo *nodo, tNodo *rnodo, tNodo *lnodo, int** tsp0);
   /* Expande nodo, obteniedo el hijo izquierdo lnodo    */
   /* y el hijo derecho rnodo                            */
@@ -210,8 +206,6 @@ void EscribeNodo (tNodo *nodo);
 /* ******************************************************************** */
 // Funciones para reserva dinamica de memoria
 int ** reservarMatrizCuadrada(unsigned int orden);
-int * reservarMatrizCuadrada1D(unsigned int orden);
 void liberarMatriz(int** m);
-void liberarMatriz1D(int* m);
 /* ******************************************************************** */
 
