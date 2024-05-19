@@ -18,6 +18,15 @@ const int MENSAJE_TRABAJO = 0,
 
 const int ENVIO_CS = 0;
 
+const int PASIVO = 0,
+          ACTIVO = 1;
+
+const int NEGRO = 0,
+          BLANCO = 1;
+
+int estado, color, token;
+bool token_presente;
+
 void Difusion_Cota_Superior(int id_Proceso, int size, int cs) {
     bool difundir_cs_local = true;
     bool pendiente_retorno_cs = false;
@@ -77,7 +86,6 @@ void Difusion_Cota_Superior(int id_Proceso, int size, int cs) {
                 1,                  //Numero de elementos enviados
                 MPI_INT,            //Tipo de mensaje
                 siguiente % size,   //Destinatario del mensaje 
-                                    //(siguiente proceso en anillo)
                 ENVIO_CS,           // Tag de peticion de trabajo
                 MPI_COMM_WORLD      //Comunicador por el que se envia
             );
@@ -94,7 +102,6 @@ void Difusion_Cota_Superior(int id_Proceso, int size, int cs) {
                 1,                  //Numero de elementos enviados
                 MPI_INT,            //Tipo de mensaje
                 siguiente % size,   //Destinatario del mensaje 
-                                    //(siguiente proceso en anillo)
                 ENVIO_CS,           // Tag de peticion de trabajo
                 MPI_COMM_WORLD      //Comunicador por el que se envia
             );
@@ -110,49 +117,125 @@ void Difusion_Cota_Superior(int id_Proceso, int size, int cs) {
     }
 }
 
-void Dijkstra () {
+void Dijkstra (int id_Proceso, int size, int &estado, int &color, int &token, bool &token_presente) {
     // P(id)
     //     ...Esperar evento;
-    // switch (tipo_evento){
-    //     case MENSAJE_TRABAJO:
-    //         estado = ACTIVO;
-    //     case MENSAJE_PETICION:
-    //         if (hay trabajo para ceder)
-    //         {
-    //             j = origen(PETICION);
-    //             Enviar TRABAJO a P(j);
-    //             if (id < j)
-    //                 mi_color = NEGRO;
-    //         }
-    //     case MENSAJE_TOKEN:
-    //         token_presente = TRUE;
-    //         if (estado == PASIVO)
-    //         {
-    //             if (id == 0 && mi_color == BLANCO && color(TOKEN) == BLANCO)
-    //                 TERMINACION DETECTADA;
-    //             else
-    //             {
-    //                 if (id == 0)
-    //                     color(TOKEN) = BLANCO;
-    //                 else if (mi_color == NEGRO)
-    //                     color(TOKEN) = NEGRO;
-    //                 Enviar TOKEN a P(id - 1);
-    //                 mi_color = BLANCO;
-    //                 token_presente = FALSE;
-    //             }
-    //         }
-    //     case TRABAJO_AGOTADO:
-    //         estado = PASIVO;
-    //         if (token_presente)
-    //             if (id == 0)
-    //                 color(TOKEN) = BLANCO;
-    //             else if (mi_color == NEGRO)
-    //                 color(TOKEN) = NEGRO;
-    //         Enviar TOKEN a P(id - 1);
-    //         mi_color = BLANCO;
-    //         token_presente = FALSE;
-    //         ...
-    // }
+    
+    MPI_Status status;
+    int flag;
+    int siguiente = id_Proceso + 1;
+
+    int anterior/* = id_Proceso == 0 ? size - 1 : id_Proceso - 1*/;
+
+    if (id_Proceso == 0) {
+        anterior = size - 1;
+    }
+    else {
+        anterior = id_Proceso - 1;
+    }
+
+    MPI_Iprobe(
+        MPI_ANY_SOURCE, // De donde espera recibir el mensaje
+        MPI_ANY_TAG,    // Espera cualquier tag
+        MPI_COMM_WORLD, // Comunicador global
+        &flag,
+        &status         // Estado del probe
+    );
+    
+    switch (status.MPI_TAG){
+        case MENSAJE_TRABAJO:
+    //      estado = ACTIVO;
+            estado = ACTIVO;
+            break;
+
+        case MENSAJE_PETICION:
+//            if (hay trabajo para ceder)
+            if (true) //Falta la condicion
+            {
+//                j = origen(PETICION);
+                int j = status.MPI_SOURCE;
+//                Enviar TRABAJO a P(j);
+                MPI_Send(
+                    &id_Proceso,      //Información enviada
+                    1,                //Numero de elementos enviados
+                    MPI_INT,          //Tipo de mensaje
+                    siguiente % size, //Destinatario del mensaje 
+                    MENSAJE_TRABAJO,  // Tag
+                    MPI_COMM_WORLD    //Comunicador por el que se envia
+                );
+//                if (id < j){
+//                    mi_color = NEGRO;
+//                }
+                if (id_Proceso < j) {
+                    color = NEGRO;
+                }
+            }
+            break;
+
+        case MENSAJE_TOKEN:
+//            token_presente = TRUE;
+            token_presente = true;
+
+//            if (estado == PASIVO)
+            if (estado == PASIVO) {
+                if (id_Proceso == 0 && color == BLANCO && token == BLANCO){
+//                    TERMINACION DETECTADA;
+                }
+                else {
+                    if (id_Proceso == 0) { // if (id == 0)
+                        // color(TOKEN) = BLANCO;
+                        token = BLANCO;
+                    }
+                    else if (color == NEGRO) {   //else if (mi_color == NEGRO)
+//                        color(TOKEN) = NEGRO;
+                        token = NEGRO;
+                    }
+
+//                    Enviar TOKEN a P(id - 1);
+                    MPI_Send(
+                        &token,              //Información enviada
+                        1,                   //Numero de elementos enviados
+                        MPI_INT,             //Tipo de mensaje
+                        anterior,            //Destinatario del mensaje
+                        MENSAJE_TOKEN,       // Tag de peticion de trabajo
+                        MPI_COMM_WORLD       //Comunicador por el que se envia
+                    );
+//                    mi_color = BLANCO;
+                    color = BLANCO;
+//                    token_presente = FALSE;
+                    token_presente = false;
+                }
+            }
+            break;
+        
+        case TRABAJO_AGOTADO:
+//            estado = PASIVO;
+            estado = PASIVO;
+            if (token_presente) {
+                if (id_Proceso == 0){//if (id == 0)
+                //color(TOKEN) = BLANCO;
+                    token = BLANCO;
+                }  
+                else if (color == NEGRO) {
+                    //color(TOKEN) = NEGRO;
+                    token = NEGRO;
+                }
+                //Enviar TOKEN a P(id - 1);
+                MPI_Send(
+                    &token,              //Información enviada
+                    1,                   //Numero de elementos enviados
+                    MPI_INT,             //Tipo de mensaje
+                    anterior,            //Destinatario del mensaje
+                    MENSAJE_TOKEN,       // Tag de peticion de trabajo
+                    MPI_COMM_WORLD       //Comunicador por el que se envia
+                );
+                //mi_color = BLANCO;
+                color = BLANCO;
+                //token_presente = FALSE;
+                token_presente = false;
+            }
+            break;
+    }
 }
 
 void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
@@ -177,8 +260,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
             &id_Proceso,         //Información enviada
             1,                   //Numero de elementos enviados
             MPI_INT,             //Tipo de mensaje
-            siguiente % size,    //Destinatario del mensaje 
-                                 //(siguiente proceso en anillo)
+            siguiente % size,    //Destinatario del mensaje
             PETIC,               // Tag de peticion de trabajo
             MPI_COMM_WORLD       //Comunicador por el que se envia
         );
@@ -213,25 +295,24 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                         // peticion devuelta
                         // Reenviar peticion de trabajo al proceso(id + 1) % P;
                         MPI_Send(
-                            &id_Proceso,      //ID de proceso que envia
+                            &id_Proceso,      //Información enviada
                             1,                //Numero de elementos enviados
                             MPI_INT,          //Tipo de mensaje
                             siguiente % size, //Destinatario del mensaje 
-                                              //(siguiente proceso en anillo)
                             PETIC,            // Tag
                             MPI_COMM_WORLD    //Comunicador por el que se envia
                         );
                         // Iniciar deteccion de posible situacion de fin;
+                        Dijkstra(id_Proceso, size, estado, color, token, token_presente);
                     }
                     else
                         // peticion de otro proceso: la retransmite al siguiente
                         // Pasar peticion de trabajo al proceso(id + 1) % P;
                         MPI_Send(
-                            &id_Proceso,         //ID de proceso que envia
+                            &id_Proceso,         //Información enviada
                             1,                   //Numero de elementos enviados
                             MPI_INT,             //Tipo de mensaje
                             siguiente % size,    //Destinatario del mensaje 
-                                                 //(siguiente proceso en anillo)
                             PETIC,               // Tag
                             MPI_COMM_WORLD       //Comunicador por el que se envia
                         );
@@ -290,7 +371,6 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                     1,                          //Numero de elementos enviados
                     MPI_INT,                    //Tipo de mensaje
                     siguiente % size,           //Destinatario del mensaje 
-                                                //(siguiente proceso en anillo)
                     NODOS,                      // Tag
                     MPI_COMM_WORLD              //Comunicador por el que se envia
                 );
@@ -313,7 +393,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                 MPI_ANY_TAG,
                 MPI_COMM_WORLD,
                 &flag,
-                &status_iprobe
+                &status
             );
         }
     }
