@@ -159,7 +159,7 @@ void Dijkstra (int id_Proceso, int size, int &estado, int &color, int &token, bo
                     &id_Proceso,      //Información enviada
                     1,                //Numero de elementos enviados
                     MPI_INT,          //Tipo de mensaje
-                    siguiente % size, //Destinatario del mensaje 
+                    j,                //Destinatario del mensaje 
                     MENSAJE_TRABAJO,  // Tag
                     MPI_COMM_WORLD    //Comunicador por el que se envia
                 );
@@ -303,7 +303,9 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                             MPI_COMM_WORLD    //Comunicador por el que se envia
                         );
                         // Iniciar deteccion de posible situacion de fin;
-                        Dijkstra(id_Proceso, size, estado, color, token, token_presente);
+                        //Cuando esté correcto el equilibrado de carga probar
+                        //con la deteccion de fin
+                        //Dijkstra(id_Proceso, size, estado, color, token, token_presente);
                     }
                     else
                         // peticion de otro proceso: la retransmite al siguiente
