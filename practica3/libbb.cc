@@ -175,19 +175,13 @@ void ApuntaArcos(tNodo *nodo, int** tsp) {
   tArco arco;
   for (arco.v=0; arco.v<NCIUDADES; arco.v++)
     if ((arco.w=nodo->incl()[arco.v]) != NULO){
-      std::cout << "Antes PonArco" << std::endl;
       PonArco (tsp, arco);
-      std::cout << "Despues PonArco" << std::endl;
     }     
-  std::cout << "Antes QuitaArco" << std::endl;
   for (arco.v=nodo->orig_excl(), i=0; i<NCIUDADES-2; i++)
     if ((arco.w=nodo->dest_excl()[i]) != NULO)
       QuitaArco (tsp, arco);
     
-  std::cout << "Despues QuitaArco" << std::endl;
-  std::cout << "Antes EliminaCiclos" << std::endl;
   EliminaCiclos (nodo, tsp);
-  std::cout << "Despues EliminaCiclos" << std::endl;
 }
 
 void InfiereArcos(tNodo *nodo, int** tsp) {
@@ -259,28 +253,24 @@ void HijoDch (tNodo *nodo, tNodo *rnodo, int** tsp, tArco arco) {
 }
 
 void Ramifica (tNodo *nodo, tNodo *lnodo, tNodo *rnodo, int** tsp0) {
+  std::cout << "reserva matriz" << std::endl;
   int** tsp = reservarMatrizCuadrada(NCIUDADES);
   tArco arco;
-  std::cout << "Antes reconstruye" << std::endl;
+  
+  std::cout << "reconstruye" << std::endl; 
   Reconstruye (nodo, tsp0, tsp);
 
-  std::cout << "Despues reconstruye" << std::endl;
-  std::cout << "Antes EligeArco" << std::endl;
+  std::cout << "eligearco" << std::endl;
   EligeArco (nodo, tsp, &arco);
   
-  std::cout << "Despues EligeArco" << std::endl;
-  std::cout << "Antes HijoIzq" << std::endl;
+  std::cout << "hijoizq" << std::endl;
   HijoIzq (nodo, lnodo, tsp, arco);
   
-  std::cout << "Despues Hijoizq" << std::endl;
-  std::cout << "Antes HijoDch" << std::endl;
+  std::cout << "hijodch" << std::endl;
   HijoDch (nodo, rnodo, tsp, arco);
   
-  std::cout << "Despues HijoDch" << std::endl;
-  std::cout << "Antes liberarMatriz" << std::endl;
 
 	liberarMatriz(tsp);
-  std::cout << "Despues liberarMatriz" << std::endl;
 
 }
 
