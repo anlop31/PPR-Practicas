@@ -253,22 +253,16 @@ void HijoDch (tNodo *nodo, tNodo *rnodo, int** tsp, tArco arco) {
 }
 
 void Ramifica (tNodo *nodo, tNodo *lnodo, tNodo *rnodo, int** tsp0) {
-  std::cout << "reserva matriz" << std::endl;
   int** tsp = reservarMatrizCuadrada(NCIUDADES);
   tArco arco;
   
-  std::cout << "reconstruye" << std::endl; 
   Reconstruye (nodo, tsp0, tsp);
 
-  std::cout << "eligearco" << std::endl;
   EligeArco (nodo, tsp, &arco);
   
-  std::cout << "hijoizq" << std::endl;
   HijoIzq (nodo, lnodo, tsp, arco);
   
-  std::cout << "hijodch" << std::endl;
   HijoDch (nodo, rnodo, tsp, arco);
-  
 
 	liberarMatriz(tsp);
 
