@@ -247,24 +247,16 @@ void Dijkstra (int id_Proceso, int size, int &estado, int &color, int &token, bo
 
 void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
 {
-    // cout << "valor(fin) => " << *fin << endl;
-    int anterior/* = id_Proceso == 0 ? size - 1 : id_Proceso - 1*/;
+    int anterior = (id_Proceso == 0) ? size - 1 : id_Proceso - 1;
+    int siguiente = id_Proceso + 1;
     int hay_mensajes;
     MPI_Status status;
-
-    cout << "\ttam pila de P(" << id_Proceso << "): " << pila->tamanio() << endl;
-
     int proceso_peticion; // id de quien lo solicita
-    if (id_Proceso == 0){
-        anterior = size - 1;
-    }
-    else {
-        anterior = id_Proceso - 1;
-    }
 
-    int siguiente = id_Proceso + 1;
+    cout << "\t\t (equilibrado) tam pila de P(" << id_Proceso << "): " << pila->tamanio() << endl;
+
+    
     if (pila->vacia()){ 
-        // cout << "pila->vacia() antes de send || id_Proceso => " << id_Proceso << " siguiente => " << siguiente % size << endl;
         // el proceso no tiene trabajo: pide a otros procesos
         // Enviar peticion de trabajo al proceso(id + 1) % P;
         MPI_Send(
@@ -275,7 +267,6 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
             PETICION,            // Tag de peticion de trabajo
             MPI_COMM_WORLD       //Comunicador por el que se envia
         );
-        // cout << "pila->vacia() despues de send || id_Proceso => " << id_Proceso << " siguiente => " << siguiente % size << endl;
 
         while (pila->vacia() && !(*fin))
         {
@@ -291,7 +282,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
             switch (status.MPI_TAG){
                 case PETICION: // Si es petición de trabajo (0)
                     // Recibir mensaje de peticion de trabajo;
-                    // cout << "PETICION => source == " << status.MPI_SOURCE << endl << flush;
+                    // cout << "Soy P" << id_Proceso << " y recibo PETICION => source == " << status.MPI_SOURCE << endl << flush;
 
                     // Recibir mensaje de petición
                     MPI_Recv(
@@ -314,7 +305,6 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                         MPI_COMM_WORLD       //Comunicador por el que se envia
                     );
 
-                    // cout << "Soy proceso " << id_Proceso << " y reenvio la peticion a " << siguiente << " con tamaño de pila " << pila->tope << endl;
 
                     // if (status.MPI_ERROR == MPI_SUCCESS) {
                     //     cout << "Recv PETICION correcto " << endl << flush;
@@ -327,6 +317,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                     if (proceso_peticion == id_Proceso) // solicitante = id
                     {
                         // cout << "\t\t\t\t\t" << "MPISOURCE == " << id_Proceso << " solicitante: " << proceso_peticion << endl;
+                        // cout << "P("<<id_Proceso<<") recibi PETICION de " << proceso_peticion << ", posible fin" << endl;
                         // Iniciar deteccion de posible situacion de fin;
                         estado = PASIVO;
                         
@@ -339,13 +330,11 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                 case TRABAJO: // Si recibe nodos (1)
                     // resultado de una peticion de trabajo
                     // Recibir nodos del proceso donante;
-                    cout << "-->TRABAJO P:" << id_Proceso << endl;
+                    cout << "-->P("<<id_Proceso<<") recibo nodos..." << endl;
 
                     estado = ACTIVO;
                     int numeroNodos;
                     MPI_Get_count(&status, MPI_INT, &numeroNodos);
-
-                    // int * nodos_recibidos = new int[numeroNodos];
 
                     MPI_Recv(
                         &pila->nodos[0],      // Donde recibe
@@ -360,12 +349,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                     // Almacenar nodos recibidos en la pila;    
                     pila->tope = numeroNodos;
 
-                    cout << "Nodos recibidos P("<<id_Proceso<<"): " << numeroNodos << endl;
-
-                    // for (int i = 0; i < pila->tope; i++) {
-                    //     pila->nodos[i] = nodos_recibidos[i];
-                    //     cout << "i: " << i << endl;
-                    // }
+                    cout << "-->P("<<id_Proceso<<") numero nodos recibidos: " << numeroNodos << "del proceso: " << status.MPI_SOURCE << endl;
 
                     break;
 
@@ -378,13 +362,13 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                 //     break;
             }
         }
-        cout << "sali del while de P: " << id_Proceso << endl << flush;
+        cout<<"P("<<id_Proceso<<")sali del while porque ya no tengo pila vacia (tam: "<<pila->tamanio()<<")" << endl << flush;
     }
 
     if (!(*fin))
     { // el proceso tiene nodos para trabajar
         // Sondear si hay mensajes pendientes de otros procesos;
-        cout << "--if(!fin) de P:" << id_Proceso << endl;
+        cout << "--P("<<id_Proceso<<") entro en proceso de sondeo" << endl;
 
         MPI_Iprobe(
             MPI_ANY_SOURCE,
@@ -394,7 +378,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
             &status
         );
 
-////////////////////
+//////////////////// 
         // int cantidadMensajes;
         // MPI_Probe(
         //     MPI_ANY_SOURCE,
@@ -406,7 +390,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
         // MPI_Get_count(&status, MPI_INT, &cantidadMensajes);
 ////////////////////
 
-        cout << "despues de iprobe con hay_mensajes: " << hay_mensajes << endl;
+        cout << "----despues de iprobe con hay_mensajes: " << hay_mensajes << endl;
 
         while (hay_mensajes > 0) // atiende peticiones mientras haya mensajes
         { 
@@ -423,7 +407,6 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
             );
             
             if (pila->tamanio() > 1){
-                // cout << "pila->tamanio > 1" << endl;
                 // Enviar nodos al proceso solicitante;
 
                 // Dividir la pila por la mitad
@@ -441,7 +424,6 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                 );
             }
             else{
-                // cout << "pila->tamanio < 1" << endl;
                 // Pasar peticion de trabajo al proceso(id + 1) % P;
                 MPI_Send(
                     &id_Proceso,                //ID de proceso que envia
@@ -524,6 +506,7 @@ int main(int argc, char **argv)
         MPI_COMM_WORLD              // Comunicador utilizado
     );
 
+    // DEBUG: ver que todos los procesos tienen la matriz bien
     // for (int i = 0; i < NCIUDADES; ++i){
     //     cout << "P(" << id_Proceso << ") || fila " << i << " => ";
     //     for (int j = 0; j < NCIUDADES; ++j){
@@ -538,9 +521,8 @@ int main(int argc, char **argv)
     if (id_Proceso != 0) {
         Equilibrado_Carga(id_Proceso, size, &pila, &fin);
         if (!fin){
-            cout << "prepop" << endl;
+            // cout << "pop" << endl;
             pila.pop(nodo);
-            cout << "postpop" << endl;
             //Pop(&pila, &nodo);
         }
     }
@@ -549,7 +531,6 @@ int main(int argc, char **argv)
     // Ciclo del B&B
 
     while (!fin) {
-        cout << "While(!fin) soy proceso " << id_Proceso << endl;
 
         Ramifica(&nodo, &nodo_izq, &nodo_dch, tsp0);
         if (Solucion(&nodo_dch))
@@ -582,7 +563,8 @@ int main(int argc, char **argv)
             }
         }
 
-        cout << "tam pila (P:"<<id_Proceso<<"): " << pila.tamanio() << endl;
+        // DEBUG
+        // cout << "(main) tam pila (P:"<<id_Proceso<<"): " << pila.tamanio() << endl;
 
         // Se difunde la cota superior
         // int antiguaCS = U;
