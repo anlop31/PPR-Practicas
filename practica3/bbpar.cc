@@ -236,9 +236,6 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin, tNodo 
                     // resultado de una peticion de trabajo
                     // Recibir nodos del proceso donante;
 
-                    // DEBUG: Recibo nodos
-                    cout << "-->P("<<id_Proceso<<") recibo nodos..." << endl;
-
                     estado = ACTIVO;
 
                     // Obtenemos la cantidad de enteros del mensaje
@@ -255,6 +252,9 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin, tNodo 
                         COMM_EQUILIBRADO,       // Comunicador 
                         &status                 // Estado de receive
                     );
+                    
+                    // DEBUG: Recibo nodos
+                    cout << "-->P(" << id_Proceso << ") nodos recibidos: " << numeroNodos << " nodos" << endl;
 
                     // Almacenar nodos recibidos en la pila;    
                     pila->tope = numeroNodos;
