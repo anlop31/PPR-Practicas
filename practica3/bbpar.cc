@@ -49,7 +49,7 @@ void Difusion_Cota_Superior(int id_Proceso, int size, int & cs) {
     int flag;
     MPI_Status status;
     int anterior = id_Proceso == 0 ? size - 1 : id_Proceso - 1;
-    int siguiente = (id_Proceso + 1);
+    int siguiente = (id_Proceso + 1) % size;
 
     if (difundir_cs_local && !pendiente_retorno_cs){
         // Enviar valor local de cs al proceso(id + 1) % P;
@@ -130,126 +130,7 @@ void Difusion_Cota_Superior(int id_Proceso, int size, int & cs) {
     }
 }
 
-// antes: void DeteccionFin (int id_Proceso, int size, int &estado, int &color, int &token, bool &token_presente) {
-void DeteccionFin (int id_Proceso, int size, bool & fin, tPila & pila) {
-    // P(id)
-    //     ...Esperar evento;
-    
-    MPI_Status status;
-    int flag;
-    int siguiente = (id_Proceso + 1) % size;
-
-    int anterior = (id_Proceso == 0) ? size - 1 : id_Proceso - 1;
-
-    MPI_Iprobe(
-        MPI_ANY_SOURCE,     // De donde espera recibir el mensaje
-        MPI_ANY_TAG,        // Espera cualquier tag
-        COMM_EQUILIBRADO,   // Comunicador de detección de fin
-        &flag,              // Flag
-        &status             // Estado del probe
-    );
-    
-    switch (status.MPI_TAG){
-        case MENSAJE_TRABAJO:
-    //      estado = ACTIVO;
-            estado = ACTIVO;
-            break;
-
-        case MENSAJE_PETICION:
-//            if (hay trabajo para ceder)
-            if (pila.tamanio() > 1) //Falta la condicion
-            {
-//                j = origen(PETICION);
-                int origen_peticion = status.MPI_SOURCE; // origen peticion = j
-//                Enviar TRABAJO a P(j);
-                MPI_Send(
-                    &id_Proceso,        // Información enviada
-                    1,                  // Numero de elementos enviados
-                    MPI_INT,            // Tipo de mensaje
-                    origen_peticion,    // Destinatario del mensaje 
-                    MENSAJE_TRABAJO,    // Tag
-                    COMM_EQUILIBRADO    // Comunicador por el que se envia
-                );
-//                if (id < j){
-//                    mi_color = NEGRO;
-//                }
-                if (id_Proceso < origen_peticion) {
-                    color = NEGRO;
-                }
-            }
-            break;
-
-        case MENSAJE_TOKEN:
-//            token_presente = TRUE;
-            token_presente = true;
-
-            cout << "P("<<id_Proceso<<") mensaje token " << endl;
-
-//            if (estado == PASIVO)
-            if (estado == PASIVO) {
-                if (id_Proceso == 0 && color == BLANCO && color_token == BLANCO){
-//                    TERMINACION DETECTADA;
-                        fin = true;
-                        cout << "fin detectado" << endl;
-                }
-                else {
-                    if (id_Proceso == 0) { // if (id == 0)
-                        // color(TOKEN) = BLANCO;
-                        color_token = BLANCO;
-                    }
-                    else if (color == NEGRO) {   //else if (mi_color == NEGRO)
-//                        color(TOKEN) = NEGRO;
-                        color_token = NEGRO;
-                    }
-
-//                    Enviar TOKEN a P(id - 1);
-                    MPI_Send(
-                        &color_token,        // Información enviada
-                        1,                   // Numero de elementos enviados
-                        MPI_INT,             // Tipo de mensaje
-                        anterior,            // Destinatario del mensaje
-                        MENSAJE_TOKEN,       // Tag de peticion de trabajo
-                        COMM_EQUILIBRADO     // Comunicador por el que se envia
-                    );
-//                    mi_color = BLANCO;
-                    color = BLANCO;
-//                    token_presente = FALSE;
-                    token_presente = false;
-                }
-            }
-            break;
-        
-        case TRABAJO_AGOTADO:
-//            estado = PASIVO;
-            estado = PASIVO;
-            if (token_presente) {
-                if (id_Proceso == 0){//if (id == 0)
-                //color(TOKEN) = BLANCO;
-                    color_token = BLANCO;
-                }  
-                else if (color == NEGRO) {
-                    //color(TOKEN) = NEGRO;
-                    color_token = NEGRO;
-                }
-                //Enviar TOKEN a P(id - 1);
-                MPI_Send(
-                    &color_token,           // Información enviada
-                    1,                      // Numero de elementos enviados
-                    MPI_INT,                // Tipo de mensaje
-                    anterior,               // Destinatario del mensaje
-                    MENSAJE_TOKEN,          // Tag de peticion de trabajo
-                    COMM_EQUILIBRADO        // Comunicador por el que se envia
-                );
-                //mi_color = BLANCO;
-                color = BLANCO;
-                //token_presente = FALSE;
-                token_presente = false;
-            }
-            break;
-    }
-}
-
-void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
+void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin, tNodo * solucion)
 {
     int anterior = (id_Proceso == 0) ? size - 1 : id_Proceso - 1;
     int siguiente = (id_Proceso + 1) % size;
@@ -260,7 +141,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
     color = BLANCO;
 
     // DEBUG: Tamaño de pila del proceso
-    cout << "\t\t (equilibrado) tam pila de P(" << id_Proceso << "): " << pila->tamanio() << endl;
+    // cout << "\t\t (equilibrado) tam pila de P(" << id_Proceso << "): " << pila->tamanio() << endl;
 
     // El proceso no tiene trabajo: pide a otros procesos
     if (pila->vacia()){ 
@@ -275,7 +156,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
         );
 
         // DEBUG: manda solicitud a siguiente
-        cout << "P(" << id_Proceso << ") mande solicitud a " << siguiente << endl;
+        // cout << "P(" << id_Proceso << ") mande solicitud a " << siguiente << endl;
 
         // Mientras la pila esté vacía y no haya terminado
         while (pila->vacia() && !(*fin))
@@ -302,7 +183,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                     );
 
                     // DEBUG: Recibe solicitud de anterior
-                    cout << "P(" << id_Proceso << ") recibe solicitud de " << anterior << endl;
+                    // cout << "P(" << id_Proceso << ") recibe solicitud de " << anterior << endl;
 
                     // Reenviar peticion de trabajo al siguiente proceso
                     MPI_Send(
@@ -315,28 +196,29 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                     );
 
                     // DEBUG: Reenvio solicitud al siguiente
-                    cout << "P(" << id_Proceso << ") reenvio solicitud a " << siguiente << endl;
+                    // cout << "P(" << id_Proceso << ") reenvio solicitud a " << siguiente << endl;
 
 
                     // El mensaje ha dado la vuelta
                     if (proceso_peticion == id_Proceso) 
                     {
                         // Iniciar deteccion de posible situacion de fin;
-
                         estado = PASIVO;
 
                         // Si tengo el token
                         if(token_presente) {
-                            // Coloreo el token según mi color
-                            color_token = BLANCO;
-                            if (color == NEGRO) {
+                            // Si soy P0 mi token es blanco
+                            if (id_Proceso == 0) {
+                                color_token = BLANCO;
+                            }
+                            else if (color == NEGRO) {
                                 color_token = NEGRO;
                             }
 
                             // Mando el token al proceso anterior
                             MPI_Send(
-                                &color_token,       // Información enviada
-                                1,                  // Número de elementos enviados
+                                nullptr,            // Información enviada
+                                0,                  // Número de elementos enviados
                                 MPI_INT,            // Tipo de mensaje
                                 anterior,           // Destinatario del mensaje
                                 TOKEN,              // Tag
@@ -377,18 +259,14 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                     // Almacenar nodos recibidos en la pila;    
                     pila->tope = numeroNodos;
 
-                    // DEBUG: Nodos recibidos con éxito
-                    cout << "-->P("<<id_Proceso<<") numero nodos recibidos: " << numeroNodos << "del proceso: " << status.MPI_SOURCE << endl;
-
                     break;
 
                 case TOKEN:
-                    cout << "TOKEN" << endl;
 
                     // Recibo el token
                     MPI_Recv(
-                        &color_token,       // Donde recibe
-                        1,                  // Tamaño del mensaje
+                        nullptr,            // Donde recibe
+                        0,                  // Tamaño del mensaje
                         MPI_INT,            // Tipo de dato del mensaje
                         siguiente,          // De donde espera recibir
                         TOKEN,              // Tag
@@ -406,6 +284,17 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                             // TERMINACIÓN DETECTADA
                             *fin = true;
                             cout << "Se ha llegado al fin" << endl;
+
+                            // ALmacenar solución
+                            MPI_Send(
+                                &solucion->datos[0],
+                                2 * NCIUDADES,
+                                MPI_INT,
+                                siguiente,
+                                FIN,
+                                COMM_EQUILIBRADO
+                            );
+
                         }
                         // En caso contrario
                         else {
@@ -413,15 +302,15 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                             if (id_Proceso == 0){
                                 color_token = BLANCO;
                             }
-                            // Si no soy proceso 0, y soy negro
-                            else if (color == NEGRO) {
+                            // Si no soy proceso 0
+                            else {
                                 color_token = NEGRO;
                             }
 
                             // Enviar TOKEN al anterior proceso
                             MPI_Send(
-                                &color_token,       // Información enviada
-                                1,                  // Número de elementos enviados
+                                nullptr,       // Información enviada
+                                0,                  // Número de elementos enviados
                                 MPI_INT,            // Tipo de mensaje
                                 anterior,           // Destinatario del mensaje
                                 TOKEN,              // Tag
@@ -437,21 +326,48 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                     break;
 
                 case FIN:
-                    cout << "FIN" << endl;
                     *fin = true;
+
+                    tNodo * solucionLocal = new tNodo();
+                    MPI_Recv(
+                        &solucionLocal->datos[0],
+                        2 * NCIUDADES,
+                        MPI_INT,
+                        anterior,
+                        FIN,
+                        COMM_EQUILIBRADO,
+                        &status
+                    );
+
+                    if (solucionLocal->ci() < solucion->ci()) {
+                        CopiaNodo(solucionLocal, solucion);
+                    }
+
+                    delete solucionLocal;
+
+                    // Si no soy el último proceso, sigo mandando la solución
+                    // if (id_Proceso != size - 1)
+                        MPI_Send(
+                            &solucion->datos[0],
+                            2 * NCIUDADES,
+                            MPI_INT,
+                            siguiente,
+                            FIN,
+                            COMM_EQUILIBRADO
+                        );
 
                     break;
             }
         }
         // DEBUG: Salí del bucle while
-        cout<<"P("<<id_Proceso<<")sali del while porque ya no tengo pila vacia (tam: "<<pila->tamanio()<<")" << endl << flush;
+        // cout<<"P("<<id_Proceso<<")sali del while porque ya no tengo pila vacia (tam: "<<pila->tamanio()<<")" << endl << flush;
     }
 
     // El proceso tiene nodos para trabajar y todavía no se ha llegado al fin
     if (!(*fin))
     { 
         // DEBUG: Qué proceso entra en sondeo
-        cout << "--P("<<id_Proceso<<") entro en proceso de sondeo" << endl;
+        // cout << "--P("<<id_Proceso<<") entro en proceso de sondeo" << endl;
         
         // Sondear si hay mensajes pendientes de otros procesos;
         MPI_Iprobe(
@@ -463,13 +379,13 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
         );
 
         // DEBUG: Saber cuantos mensajes ha recibido MPI_Iprobe
-        cout << "----Despues de iprobe con hay_mensajes: " << hay_mensajes << endl;
+        cout << "---- P(" << id_Proceso << ") Sondeo hay_mensajes: " << hay_mensajes << endl;
 
         // Atiende peticiones mientras haya mensajes
         while (hay_mensajes > 0) 
         { 
             // DEBUG: Entro en el while
-            cout << "Entro en while(hay_mensajes)" << endl;
+            // cout << "Entro en while(hay_mensajes)" << endl;
 
             // Según el tipo de mensaje (tag)
             switch (status.MPI_TAG)
@@ -525,8 +441,8 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                 case TOKEN:
                     // Recibo el token
                     MPI_Recv(
-                        &color_token,           // Donde recibe
-                        1,                      // Tamaño del mensaje
+                        nullptr,                // Donde recibe
+                        0,                      // Tamaño del mensaje
                         MPI_INT,                // Tipo de dato del mensaje
                         status.MPI_SOURCE,      // De donde espera recibir
                         TOKEN,                  // Tag
@@ -633,7 +549,7 @@ int main(int argc, char **argv)
     bool fin = false;
 
     if (id_Proceso != 0) {
-        Equilibrado_Carga(id_Proceso, size, &pila, &fin);
+        Equilibrado_Carga(id_Proceso, size, &pila, &fin, &solucion);
         if (!fin){
             pila.pop(nodo);
             //Pop(&pila, &nodo);
@@ -680,17 +596,17 @@ int main(int argc, char **argv)
         // cout << "(main) tam pila (P:"<<id_Proceso<<"): " << pila.tamanio() << endl;
 
         // Se difunde la cota superior
-        // int antiguaCS = U;
-        // Difusion_Cota_Superior(id_Proceso, size, U);
+        int antiguaCS = U;
+        Difusion_Cota_Superior(id_Proceso, size, U);
 
         // Si hay nueva cota superior
-        // if (U != antiguaCS){
-        //     // Acotar(&pila, U); // Se cambia la cota de la pila actual
-        //     pila.acotar(U);
-        // }
+        if (U != antiguaCS){
+            // Acotar(&pila, U); // Se cambia la cota de la pila actual
+            pila.acotar(U);
+        }
 
         // Se equilibra la carga de la pila
-        Equilibrado_Carga(id_Proceso, size, &pila, &fin);
+        Equilibrado_Carga(id_Proceso, size, &pila, &fin, &solucion);
 
         
         if (!fin){
