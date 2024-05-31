@@ -10,10 +10,10 @@ using namespace MPI;
 extern unsigned int NCIUDADES;
 
 // Tipos de mensajes que se env�an los procesos
-const int  PETICION = 0;
-const int NODOS = 1;
-const int TOKEN = 2;
-const int FIN = 3;
+extern const int PETICION = 0;
+extern const int NODOS = 1;
+extern const int TOKEN = 2;
+extern const int FIN = 3;
 
 // Estados en los que se puede encontrar un proceso
 extern const int ACTIVO = 0;
@@ -35,7 +35,7 @@ extern int estado;	// Estado del proceso {ACTIVO, PASIVO}
 extern int color;	// Color del proceso {BLANCO,NEGRO}
 extern int color_token; 	// Color del token la �ltima vez que estaba en poder del proceso
 extern bool token_presente;  // Indica si el proceso posee el token
-extern MPI_Comm COMM_EQUILIBRADO, COMM_DIFUSION, COMM_FIN; // comunicadores
+extern MPI_Comm COMM_EQUILIBRADO, COMM_DIFUSION; // comunicadores
 int anterior;	// Identificador del anterior proceso
 int siguiente;	// Identificador del siguiente proceso
 bool difundir_cs_local;	// Indica si el proceso puede difundir su cota inferior local
