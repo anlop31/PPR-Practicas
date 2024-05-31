@@ -16,7 +16,5 @@ libbb.o: libbb.cc libbb.h
 
 
 clean:
+	/bin/rm -f *.o bbpar
 	/bin/rm -f *.o bbseq
-
-
-
