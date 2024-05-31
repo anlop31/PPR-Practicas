@@ -35,6 +35,7 @@ extern int estado;	// Estado del proceso {ACTIVO, PASIVO}
 extern int color;	// Color del proceso {BLANCO,NEGRO}
 extern int color_token; 	// Color del token la �ltima vez que estaba en poder del proceso
 extern bool token_presente;  // Indica si el proceso posee el token
+extern MPI_Comm COMM_EQUILIBRADO, COMM_DIFUSION, COMM_FIN; // comunicadores
 int anterior;	// Identificador del anterior proceso
 int siguiente;	// Identificador del siguiente proceso
 bool difundir_cs_local;	// Indica si el proceso puede difundir su cota inferior local
