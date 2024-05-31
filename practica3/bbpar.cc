@@ -35,66 +35,69 @@ const int NEGRO = 0,
 int estado, color, token;
 bool token_presente;
 
-void Difusion_Cota_Superior(int id_Proceso, int size, int cs) {
+MPI_Comm COMM_EQUILIBRADO,    
+        COMM_DIFUSION,            
+        COMM_FIN;    
+
+void Difusion_Cota_Superior(int id_Proceso, int size, int & cs) {
     bool difundir_cs_local = true;
     bool pendiente_retorno_cs = false;
     int cs_local = cs;
-    int siguiente = id_Proceso + 1;
     int flag;
     MPI_Status status;
-    int anterior/* = id_Proceso == 0 ? size - 1 : id_Proceso - 1*/;
+    int anterior = id_Proceso == 0 ? size - 1 : id_Proceso - 1;
+    int siguiente = (id_Proceso + 1);
 
-    if (id_Proceso == 0){
-        anterior = size - 1;
-    }
-    else {
-        anterior = id_Proceso - 1;
-    }
     if (difundir_cs_local && !pendiente_retorno_cs){
         // Enviar valor local de cs al proceso(id + 1) % P;
         MPI_Send(
             &cs_local,          //ID de proceso que envia
             1,                  //Numero de elementos enviados
             MPI_INT,            //Tipo de mensaje
-            siguiente % size,   //Destinatario del mensaje
+            siguiente,   //Destinatario del mensaje
             ENVIO_CS,           // Tag de peticion de trabajo
-            MPI_COMM_WORLD      //Comunicador por el que se envia
+            COMM_DIFUSION      //Comunicador por el que se envia
         );
         pendiente_retorno_cs = true;
         difundir_cs_local = false;
     }
-    // Sondear si hay mensajes de cota superior pendientes;
 
+    // Sondear si hay mensajes de cota superior pendientes;
     MPI_Iprobe(
-        MPI_ANY_SOURCE,         //ID del proceso que ha enviado mensaje
+        anterior,         //ID del proceso que ha enviado mensaje
         ENVIO_CS,               //Tag con el que se espera recibir el mensaje
-        MPI_COMM_WORLD,         //Comunicador utilizado
+        COMM_DIFUSION,         //Comunicador utilizado
         &flag,                  //Flag del probe
         &status                 //MPI_Status del iprobe
     );
-    while (flag)
+
+    while (flag) // mientras haya mensajes
     {
         // Recibir mensaje con valor de cota superior desde el proceso(id - 1 + P) % P;    
         MPI_Recv(
             &cs_local,                        // Donde recibe
             1,                                // Tamaño del mensaje
             MPI_INT,                          // Tipo de dato del mensaje
-            anterior % size,                  // De donde espera recibir
-            status.MPI_TAG,                   // Tag
-            MPI_COMM_WORLD,                   // Comunicador global
+            anterior,                  // De donde espera recibir
+            ENVIO_CS,                   // Tag
+            COMM_DIFUSION,                   // Comunicador global
             &status                           // Estado de receive
         );
 
         // Actualizar valor local de cota superior;
+        if (cs_local < cs){
+            cs = cs_local;
+        }
+
         if (status.MPI_SOURCE == id_Proceso && difundir_cs_local) {
             // Enviar valor local de cs al proceso(id + 1) % P;
             MPI_Send(
-                &cs_local,          //ID de proceso que envia
+                &cs,          //ID de proceso que envia
                 1,                  //Numero de elementos enviados
                 MPI_INT,            //Tipo de mensaje
-                siguiente % size,   //Destinatario del mensaje 
+                siguiente,   //Destinatario del mensaje 
                 ENVIO_CS,           // Tag de peticion de trabajo
-                MPI_COMM_WORLD      //Comunicador por el que se envia
+                COMM_DIFUSION      //Comunicador por el que se envia
             );
             pendiente_retorno_cs = true;
             difundir_cs_local = false;
@@ -105,47 +108,41 @@ void Difusion_Cota_Superior(int id_Proceso, int size, int cs) {
         else{ // origen mensaje == otro proceso
             // Reenviar mensaje al proceso(id + 1) % P;
             MPI_Send(
-                &cs_local,          //ID de proceso que envia
+                &cs,          //ID de proceso que envia
                 1,                  //Numero de elementos enviados
                 MPI_INT,            //Tipo de mensaje
-                siguiente % size,   //Destinatario del mensaje 
+                siguiente,   //Destinatario del mensaje 
                 ENVIO_CS,           //Tag de envío de cota superior
-                MPI_COMM_WORLD      //Comunicador por el que se envia
+                COMM_DIFUSION      //Comunicador por el que se envia
             );
         }
         // Sondear si hay mensajes de cota superior pendientes;
         MPI_Iprobe(
-            MPI_ANY_SOURCE,         //ID del proceso que ha enviado mensaje
+            anterior,         //ID del proceso que ha enviado mensaje
             ENVIO_CS,               //Tag con el que se espera recibir el mensaje
-            MPI_COMM_WORLD,         //Comunicador utilizado
+            COMM_DIFUSION,         //Comunicador utilizado
             &flag,                  //Flag del iprobe
             &status                 //MPI_Status del iprobe
         );
     }
 }
 
-void Dijkstra (int id_Proceso, int size, int &estado, int &color, int &token, bool &token_presente) {
+// antes: void Dijkstra (int id_Proceso, int size, int &estado, int &color, int &token, bool &token_presente) {
+void Dijkstra (int id_Proceso, int size, bool & fin, tPila & pila) {
     // P(id)
     //     ...Esperar evento;
     
     MPI_Status status;
     int flag;
-    int siguiente = id_Proceso + 1;
+    int siguiente = (id_Proceso + 1) % size;
 
-    int anterior/* = id_Proceso == 0 ? size - 1 : id_Proceso - 1*/;
-
-    if (id_Proceso == 0) {
-        anterior = size - 1;
-    }
-    else {
-        anterior = id_Proceso - 1;
-    }
+    int anterior = (id_Proceso == 0) ? size - 1 : id_Proceso - 1;
 
     MPI_Iprobe(
         MPI_ANY_SOURCE, // De donde espera recibir el mensaje
         MPI_ANY_TAG,    // Espera cualquier tag
-        MPI_COMM_WORLD, // Comunicador global
-        &flag,
+        COMM_FIN,       // Comunicador de detección de fin
+        &flag,          // Flag
         &status         // Estado del probe
     );
     
@@ -157,23 +154,23 @@ void Dijkstra (int id_Proceso, int size, int &estado, int &color, int &token, bo
 
         case MENSAJE_PETICION:
 //            if (hay trabajo para ceder)
-            if (true) //Falta la condicion
+            if (pila.tamanio() > 1) //Falta la condicion
             {
 //                j = origen(PETICION);
-                int j = status.MPI_SOURCE;
+                int origen_peticion = status.MPI_SOURCE; // origen peticion = j
 //                Enviar TRABAJO a P(j);
                 MPI_Send(
-                    &id_Proceso,      //Información enviada
-                    1,                //Numero de elementos enviados
-                    MPI_INT,          //Tipo de mensaje
-                    j,                //Destinatario del mensaje 
-                    MENSAJE_TRABAJO,  // Tag
-                    MPI_COMM_WORLD    //Comunicador por el que se envia
+                    &id_Proceso,        //Información enviada
+                    1,                  //Numero de elementos enviados
+                    MPI_INT,            //Tipo de mensaje
+                    origen_peticion,                //Destinatario del mensaje 
+                    MENSAJE_TRABAJO,    // Tag
+                    COMM_FIN      //Comunicador por el que se envia
                 );
 //                if (id < j){
 //                    mi_color = NEGRO;
 //                }
-                if (id_Proceso < j) {
+                if (id_Proceso < origen_peticion) {
                     color = NEGRO;
                 }
             }
@@ -187,6 +184,7 @@ void Dijkstra (int id_Proceso, int size, int &estado, int &color, int &token, bo
             if (estado == PASIVO) {
                 if (id_Proceso == 0 && color == BLANCO && token == BLANCO){
 //                    TERMINACION DETECTADA;
+                        fin = true;
                 }
                 else {
                     if (id_Proceso == 0) { // if (id == 0)
@@ -205,7 +203,7 @@ void Dijkstra (int id_Proceso, int size, int &estado, int &color, int &token, bo
                         MPI_INT,             //Tipo de mensaje
                         anterior,            //Destinatario del mensaje
                         MENSAJE_TOKEN,       // Tag de peticion de trabajo
-                        MPI_COMM_WORLD       //Comunicador por el que se envia
+                        COMM_FIN       //Comunicador por el que se envia
                     );
 //                    mi_color = BLANCO;
                     color = BLANCO;
@@ -234,7 +232,7 @@ void Dijkstra (int id_Proceso, int size, int &estado, int &color, int &token, bo
                     MPI_INT,             //Tipo de mensaje
                     anterior,            //Destinatario del mensaje
                     MENSAJE_TOKEN,       // Tag de peticion de trabajo
-                    MPI_COMM_WORLD       //Comunicador por el que se envia
+                    COMM_FIN       //Comunicador por el que se envia
                 );
                 //mi_color = BLANCO;
                 color = BLANCO;
@@ -248,7 +246,7 @@ void Dijkstra (int id_Proceso, int size, int &estado, int &color, int &token, bo
 void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
 {
     int anterior = (id_Proceso == 0) ? size - 1 : id_Proceso - 1;
-    int siguiente = id_Proceso + 1;
+    int siguiente = (id_Proceso + 1) % size;
     int hay_mensajes;
     MPI_Status status;
     int proceso_peticion; // id de quien lo solicita
@@ -263,9 +261,9 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
             &id_Proceso,         //Información enviada
             1,                   //Numero de elementos enviados
             MPI_INT,             //Tipo de mensaje
-            siguiente % size,    //Destinatario del mensaje
+            siguiente,    //Destinatario del mensaje
             PETICION,            // Tag de peticion de trabajo
-            MPI_COMM_WORLD       //Comunicador por el que se envia
+            COMM_EQUILIBRADO       //Comunicador por el que se envia
         );
 
         while (pila->vacia() && !(*fin))
@@ -275,7 +273,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
             MPI_Probe(
                 MPI_ANY_SOURCE, // De donde espera recibir el mensaje
                 MPI_ANY_TAG,    // Espera cualquier tag
-                MPI_COMM_WORLD, // Comunicador global
+                COMM_EQUILIBRADO, // Comunicador global
                 &status         // Estado del probe
             );
 
@@ -291,7 +289,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                         MPI_INT,                 // Tipo de dato del mensaje
                         anterior,                // De donde espera recibir
                         PETICION,                // Tag
-                        MPI_COMM_WORLD,          // Comunicador global
+                        COMM_EQUILIBRADO,          // Comunicador global
                         &status                  // Estado de receive
                     );
 
@@ -300,9 +298,9 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                         &proceso_peticion,         //Información enviada
                         1,                   //Numero de elementos enviados
                         MPI_INT,             //Tipo de mensaje
-                        siguiente % size,    //Destinatario del mensaje 
+                        siguiente,    //Destinatario del mensaje 
                         PETICION,            // Tag
-                        MPI_COMM_WORLD       //Comunicador por el que se envia
+                        COMM_EQUILIBRADO       //Comunicador por el que se envia
                     );
 
 
@@ -319,11 +317,10 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                         // cout << "\t\t\t\t\t" << "MPISOURCE == " << id_Proceso << " solicitante: " << proceso_peticion << endl;
                         // cout << "P("<<id_Proceso<<") recibi PETICION de " << proceso_peticion << ", posible fin" << endl;
                         // Iniciar deteccion de posible situacion de fin;
-                        estado = PASIVO;
                         
                         //Cuando esté correcto el equilibrado de carga probar
                         //con la deteccion de fin
-                        //Dijkstra(id_Proceso, size, estado, color, token, token_presente);
+                        // Dijkstra(id_Proceso, size, *fin, *pila);
                     }
 
                     break;
@@ -342,7 +339,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                         MPI_INT,                // Tipo de dato del mensaje
                         status.MPI_SOURCE,               // De donde espera recibir
                         TRABAJO,                // Tag
-                        MPI_COMM_WORLD,         // Comunicador global
+                        COMM_EQUILIBRADO,         // Comunicador global
                         &status                 // Estado de receive
                     );
 
@@ -369,11 +366,11 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
     { // el proceso tiene nodos para trabajar
         // Sondear si hay mensajes pendientes de otros procesos;
         cout << "--P("<<id_Proceso<<") entro en proceso de sondeo" << endl;
-
+        
         MPI_Iprobe(
             MPI_ANY_SOURCE,
             MPI_ANY_TAG,
-            MPI_COMM_WORLD,
+            COMM_EQUILIBRADO,
             &hay_mensajes,
             &status
         );
@@ -383,7 +380,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
         // MPI_Probe(
         //     MPI_ANY_SOURCE,
         //     MPI_ANY_TAG,
-        //     MPI_COMM_WORLD,
+        //     COMM_EQUILIBRADO,
         //     // &hay_mensajes,
         //     &status
         // );
@@ -402,7 +399,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                 MPI_INT,                // Tipo de dato del mensaje
                 anterior,               // De donde espera recibir
                 PETICION,               // Tag
-                MPI_COMM_WORLD,         // Comunicador global
+                COMM_EQUILIBRADO,         // Comunicador global
                 &status                 // Estado de receive
             );
             
@@ -420,18 +417,18 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
                     MPI_INT,                                // Tipo de mensaje
                     proceso_peticion,                       // Destinatario del mensaje 
                     TRABAJO,                                // Tag
-                    MPI_COMM_WORLD                          // Comunicador por el que se envia
+                    COMM_EQUILIBRADO                          // Comunicador por el que se envia
                 );
             }
             else{
                 // Pasar peticion de trabajo al proceso(id + 1) % P;
                 MPI_Send(
-                    &id_Proceso,                //ID de proceso que envia
+                    &proceso_peticion,                //ID de proceso que envia
                     1,                          //Numero de elementos enviados
                     MPI_INT,                    //Tipo de mensaje
-                    siguiente % size,           //Destinatario del mensaje (siguiente proceso en anillo)
+                    siguiente,           //Destinatario del mensaje (siguiente proceso en anillo)
                     PETICION,                   // Tag
-                    MPI_COMM_WORLD              //Comunicador por el que se envia
+                    COMM_EQUILIBRADO              //Comunicador por el que se envia
                 );
             }
             
@@ -439,7 +436,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
             MPI_Iprobe(
                 MPI_ANY_SOURCE,
                 MPI_ANY_TAG,
-                MPI_COMM_WORLD,
+                COMM_EQUILIBRADO,
                 &hay_mensajes,
                 &status
             );
@@ -455,7 +452,7 @@ void Equilibrado_Carga(int id_Proceso, int size, tPila * pila, bool *fin)
             // MPI_Get_count(&status, MPI_INT, &cantidadMensajes);     
             // cout << "probe de despues con " << cantidadMensajes << " mensajes" << endl;       
 //////////////////////
-        }
+        } // fin while hay mensajes
     }
 }
 
@@ -475,6 +472,35 @@ int main(int argc, char **argv)
 					exit(1);
 					break;
 	}
+
+    // Creación de comunicadores para el equilibrado, al difusión de cota y deteccion de fin
+    // extern MPI_Comm COMM_EQUILIBRADO,    
+    //             COMM_DIFUSION,            
+    //             COMM_FIN;                 
+
+
+    int colorEquilibrado = 0; // columnas
+
+    MPI_Comm_split (MPI_COMM_WORLD,     // a partir del comunicador global
+                    colorEquilibrado,       // los del mismo color entraran en el mismo comunicador
+                    id_Proceso,         // indica el orden de asignacion de rango dentro del nuevo comm
+                    &COMM_EQUILIBRADO);    // referencia al nuevo comunicador
+
+    int colorDifusion = 1; // columnas
+
+    MPI_Comm_split (MPI_COMM_WORLD,     // a partir del comunicador global
+                    colorDifusion,       // los del mismo color entraran en el mismo comunicador
+                    id_Proceso,         // indica el orden de asignacion de rango dentro del nuevo comm
+                    &COMM_DIFUSION);    // referencia al nuevo comunicador
+
+    int colorFin = 2; // columnas
+
+    MPI_Comm_split (MPI_COMM_WORLD,     // a partir del comunicador global
+                    colorFin,       // los del mismo color entraran en el mismo comunicador
+                    id_Proceso,         // indica el orden de asignacion de rango dentro del nuevo comm
+                    &COMM_FIN);    // referencia al nuevo comunicador
+
+
     
     int** tsp0 = reservarMatrizCuadrada(NCIUDADES);
     tNodo	nodo,           // nodo a explorar
