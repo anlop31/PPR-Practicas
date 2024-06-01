@@ -560,7 +560,7 @@ int main(int argc, char **argv)
     
 
     // Ciclo del B&B
-
+    double t = MPI::Wtime();
     while (!fin) {
 
         Ramifica(&nodo, &nodo_izq, &nodo_dch, tsp0);
@@ -618,7 +618,14 @@ int main(int argc, char **argv)
 
 	iteraciones++;
     }
+    t = MPI:Wtime() - t;
 
+    if (id_Proceso == 0) {
+	cout << "=============== SOLUCIÓN ENCONTRADA ===============\n";
+	EscribeNodo(&solucion);
+	cout << "Tiempo de cálculo = " << t << endl;
+    }
+	
     MPI_Finalize();
 
     if (id_Proceso == 0) {
