@@ -613,6 +613,8 @@ int main(int argc, char **argv)
             // Pop(&pila, &nodo);
             pila.pop(nodo);
         }
+
+	iteraciones++;
     }
 
     MPI_Finalize();
