@@ -525,6 +525,7 @@ int main(int argc, char **argv)
     if (id_Proceso == 0){
         // Leer_Problema_Inicial(&nodo);
         LeerMatriz (argv[2], tsp0);    // lee matriz de fichero
+	token_presente = true;
     }
 
     // ... Difusión matriz del problema inicial del proceso 0 al resto
@@ -549,6 +550,7 @@ int main(int argc, char **argv)
     bool fin = false;
 
     if (id_Proceso != 0) {
+	token_presente = false;
         Equilibrado_Carga(id_Proceso, size, &pila, &fin, &solucion);
         if (!fin){
             pila.pop(nodo);
